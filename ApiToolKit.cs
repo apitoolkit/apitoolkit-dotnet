@@ -213,10 +213,18 @@ namespace ApiToolkit.Net
 
         public static byte[] RedactJSON(byte[] data, List<string> jsonPaths)
         {
-            Console.WriteLine($"Blabla {System.Text.Encoding.UTF8.GetString(data)}");
-            JObject jsonObject = JObject.Parse(System.Text.Encoding.UTF8.GetString(data));
-            (jsonPaths ?? new List<string>()).ForEach(jPath => jsonObject.SelectTokens(jPath).ToList().ForEach(token => token.Replace("[CLIENT_REDACTED]")));
-            return System.Text.Encoding.UTF8.GetBytes(jsonObject.ToString());
+            if (jsonPaths is null || jsonPaths.Count == 0 || !data.Any()) return data;
+
+            try
+            {
+                JObject jsonObject = JObject.Parse(System.Text.Encoding.UTF8.GetString(data));
+                (jsonPaths ?? new List<string>()).ForEach(jPath => jsonObject.SelectTokens(jPath).ToList().ForEach(token => token.Replace("[CLIENT_REDACTED]")));
+                return System.Text.Encoding.UTF8.GetBytes(jsonObject.ToString());
+            }
+            catch (Exception)
+            {
+                return data;
+            }
         }
 
 
