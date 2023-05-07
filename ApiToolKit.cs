@@ -30,6 +30,7 @@ namespace ApiToolkit.Net
 
         public async Task InvokeAsync(HttpContext context)
         {
+            Console.WriteLine("APIToolkit: in InvokeAsync");
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
             context.Request.EnableBuffering(); // so we can read the body stream multiple times
@@ -61,24 +62,24 @@ namespace ApiToolkit.Net
           }
         }
 
-        // public static async Task<byte[]> GetResponseBodyBytesAsync(Stream responseStream)
-        // {
-        //     responseStream.Seek(0, SeekOrigin.Begin);
-        //     var memoryStream = new MemoryStream();
-        //     await responseStream.CopyToAsync(memoryStream);
-        //     responseStream.Seek(0, SeekOrigin.Begin);
-
-        //     return memoryStream.ToArray();
-        // }
-        public static async Task<byte[]> GetResponseBodyBytesAsync(HttpResponseStream responseStream)
+        public static async Task<byte[]> GetResponseBodyBytesAsync(Stream responseStream)
         {
-            responseStream.Body.Position = 0;
+            responseStream.Seek(0, SeekOrigin.Begin);
             var memoryStream = new MemoryStream();
-            await responseStream.Body.CopyToAsync(memoryStream);
-            responseStream.Body.Position = 0;
+            await responseStream.CopyToAsync(memoryStream);
+            responseStream.Seek(0, SeekOrigin.Begin);
 
             return memoryStream.ToArray();
         }
+        // public static async Task<byte[]> GetResponseBodyBytesAsync(HttpResponseStream responseStream)
+        // {
+        //     responseStream.Body.Position = 0;
+        //     var memoryStream = new MemoryStream();
+        //     await responseStream.Body.CopyToAsync(memoryStream);
+        //     responseStream.Body.Position = 0;
+
+        //     return memoryStream.ToArray();
+        // }
 
         public static async Task<Client> NewClientAsync(Config cfg)
         {

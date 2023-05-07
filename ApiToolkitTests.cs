@@ -3,13 +3,19 @@ using NUnit.Framework;
 using System.Collections.Generic;
 using ApiToolkit.Net;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Internal;
 using Microsoft.Extensions.Primitives;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Newtonsoft.Json;
 using System.Diagnostics;
+using System.IO;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.Hosting;
+// using Moq;
 
 public class RedactTests
 {
@@ -180,4 +186,113 @@ public class RedactTests
       // Assert
       Assert.AreEqual(responseBytes, bytes);
   }
+
+  [Test]
+  public async Task MiddlewareTest_ReturnsNotFoundForRequest()
+  {
+    var config = new Config
+    {
+        ApiKey = "xa5IJMIePi4zlddOgqZsTDxL9DmQHdKevbK+1exYoWoApI6W"
+    };
+    var client = await APIToolkit.NewClientAsync(config);
+    using var host = await new HostBuilder()
+        .ConfigureWebHost(webBuilder =>
+        {
+            webBuilder
+                .UseTestServer()
+                .ConfigureServices(services =>
+                {
+                    services.AddMyServices();
+                })
+                .Configure(app =>
+                {
+                    // app.UseMiddleware<MyMiddleware>();
+                    app.Use(async (context, next) =>
+                    {
+                        var apiToolkit = new APIToolkit(next, client);
+                        await apiToolkit.InvokeAsync(context);
+                    });
+                });
+        })
+        .StartAsync();
+
+    var response = await host.GetTestClient().GetAsync("/");
+
+    // ...
+  }
 }
+
+
+// [TestFixture]
+// public class MyMiddlewareTests
+// {
+//     private TestServer _server;
+
+//     [SetUp]
+//     public async void SetUp()
+//     {
+//         // app.UseMyMiddleware();
+//         var config = new Config
+//         {
+//             ApiKey = "xa5IJMIePi4zlddOgqZsTDxL9DmQHdKevbK+1exYoWoApI6W"
+//         };
+//         var client = await APIToolkit.NewClientAsync(config);
+
+//         var webHostBuilder = new WebHostBuilder()
+//             .Configure(app =>
+//             {
+//                 // app.UseMyMiddleware();
+//                 app.Use(async (context, next) =>
+//                 {
+//                     var apiToolkit = new APIToolkit(next, client);
+//                     await apiToolkit.InvokeAsync(context);
+//                 });
+//             });
+
+//         // var webHostBuilder = new WebHostBuilder()
+//         //     // .ConfigureServices(services =>
+//         //     // {
+//         //     //     // services.AddSingleton<IMyService, MyService>();
+//         //     // })
+//         //     .Configure(app =>
+//         //     {
+//         //         app.Use(async (context, next) =>
+//         //         {
+//         //             var apiToolkit = new APIToolkit(next, client);
+//         //             await apiToolkit.InvokeAsync(context);
+//         //         });
+//         //     });
+//             // .Use(async (context, next) =>
+//             //     {
+//             //         var config = new Config
+//             //         {
+//             //             ApiKey = "xa5IJMIePi4zlddOgqZsTDxL9DmQHdKevbK+1exYoWoApI6W"
+//             //         };
+//             //         var client = await APIToolkit.NewClientAsync(config);
+//             //         var apiToolkit = new APIToolkit(next, client);
+//             //         await apiToolkit.InvokeAsync(context);
+//             //     });
+
+//         _server = new TestServer(webHostBuilder);
+//     }
+
+//     [TearDown]
+//     public void TearDown()
+//     {
+//         _server.Dispose();
+//     }
+
+//     [Test]
+//     public async Task TestMyMiddleware()
+//     {
+//         // Arrange
+//         var client = _server.CreateClient();
+//         var request = new HttpRequestMessage(HttpMethod.Get, "/api/test");
+
+//         // Act
+//         var response = await client.SendAsync(request);
+
+//         // Assert
+//         response.EnsureSuccessStatusCode();
+//     }
+// }
