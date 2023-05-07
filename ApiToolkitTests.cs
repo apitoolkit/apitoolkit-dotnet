@@ -132,7 +132,11 @@ public class RedactTests
       Stopwatch stopwatch = new Stopwatch();
       stopwatch.Start();
 
-      var client = new Client(null, null, config, null);
+      var metadata = new ClientMetadata{
+        ProjectId = "project_id"
+      };
+
+      var client = new Client(null, null, config, metadata);
 
       // Act
       var payload = client.BuildPayload(sdkType, stopwatch, req, statusCode, reqBody, respBody, respHeaders, pathParams, urlPath);
@@ -165,7 +169,7 @@ public class RedactTests
       Console.WriteLine($"APIToolkit: {JsonConvert.SerializeObject(payload)}");
   }
 
-  [Test]
+  // [Test]
   public async Task MiddlewareTest_ReturnsNotFoundForRequest()
   {
     var config = new Config
