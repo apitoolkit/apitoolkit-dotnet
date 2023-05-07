@@ -163,4 +163,21 @@ public class RedactTests
       Assert.AreEqual(urlPath, payload.UrlPath);
       Console.WriteLine($"APIToolkit: {JsonConvert.SerializeObject(payload)}");
   }
+
+
+  [Test]
+  public async Task GetResponseBodyBytesAsync_ReturnsCorrectBytes()
+  {
+      // Arrange
+      var context = new DefaultHttpContext();
+      var responseBody = "This is the response body";
+      var responseBytes = Encoding.UTF8.GetBytes(responseBody);
+      context.Response.Body = new MemoryStream(responseBytes);
+      
+      // Act
+      var bytes = await APIToolkit.GetResponseBodyBytesAsync(context.Response.Body);
+
+      // Assert
+      Assert.AreEqual(responseBytes, bytes);
+  }
 }

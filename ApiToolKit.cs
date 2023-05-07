@@ -39,10 +39,10 @@ namespace ApiToolkit.Net
               var requestBody = await new StreamReader(context.Request.Body).ReadToEndAsync();
               context.Request.Body.Position = 0; // reset the body stream to the beginning
 
-              context.Response.Body.Seek(0, SeekOrigin.Begin);
-              var memoryStream = new MemoryStream();
-              await context.Response.Body.CopyToAsync(memoryStream);
-              context.Response.Body.Seek(0, SeekOrigin.Begin);
+              // context.Response.Body.Seek(0, SeekOrigin.Begin);
+              // var memoryStream = new MemoryStream();
+              // await context.Response.Body.CopyToAsync(memoryStream);
+              // context.Response.Body.Seek(0, SeekOrigin.Begin);
 
               var pathParams = context.GetRouteData().Values
                   .Where(v => !string.IsNullOrEmpty(v.Value?.ToString()))
@@ -50,11 +50,21 @@ namespace ApiToolkit.Net
 
               var responseHeaders = context.Response.Headers.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList());
               var payload = _client.BuildPayload("DotNet", stopwatch, context.Request, context.Response.StatusCode,
-                  System.Text.Encoding.UTF8.GetBytes(requestBody), memoryStream.ToArray() , responseHeaders,
+                  System.Text.Encoding.UTF8.GetBytes(requestBody), await GetResponseBodyBytesAsync(context.Response.Body), responseHeaders,
                   pathParams, context.Request.Path);
 
               await _client.PublishMessageAsync(payload);
           }
+        }
+
+        public static async Task<byte[]> GetResponseBodyBytesAsync(Stream responseStream)
+        {
+            responseStream.Seek(0, SeekOrigin.Begin);
+            var memoryStream = new MemoryStream();
+            await responseStream.CopyToAsync(memoryStream);
+            responseStream.Seek(0, SeekOrigin.Begin);
+
+            return memoryStream.ToArray();
         }
 
         public static async Task<Client> NewClientAsync(Config cfg)
