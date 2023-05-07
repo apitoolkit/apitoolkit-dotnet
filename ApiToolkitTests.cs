@@ -117,7 +117,6 @@ public class RedactTests
           { "id", "123" }
       };
       var urlPath = "/path/to/resource/{id}";
-      var projectId =  "test-project";
       var config = new Config
       {
           RedactHeaders = new List<string> { "Authorization" },
@@ -136,7 +135,6 @@ public class RedactTests
       {
           { "id", "123" },
       }, payload.PathParams);
-      // Assert.AreEqual(metadata.ProjectId, payload.ProjectId);
       Assert.AreEqual(1, payload.ProtoMajor);
       Assert.AreEqual(1, payload.ProtoMinor);
       Assert.AreEqual(new Dictionary<string, List<string>>

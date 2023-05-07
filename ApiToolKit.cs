@@ -31,30 +31,16 @@ namespace ApiToolkit.Net
             var start = DateTime.UtcNow;
             context.Request.EnableBuffering(); // so we can read the body stream multiple times
 
-            // var requestBody = await new StreamReader(request.Body).ReadToEndAsync();
-            // request.Body.Position = 0; // reset the body stream to the beginning
-
-            // var responseBodyStream = new MemoryStream();
-            // var originalResponseBodyStream = context.Response.Body;
-            // context.Response.Body = responseBodyStream;
-
             try {
               await _next(context); // execute the next middleware in the pipeline
             } finally {
-              // responseBodyStream.Seek(0, SeekOrigin.Begin);
-              // var responseBody = await new StreamReader(responseBodyStream).ReadToEndAsync();
-              // responseBodyStream.Seek(0, SeekOrigin.Begin);
+              var requestBody = await new StreamReader(context.Request.Body).ReadToEndAsync();
+              context.Request.Body.Position = 0; // reset the body stream to the beginning
 
-              // Read the response body
               context.Response.Body.Seek(0, SeekOrigin.Begin);
               var memoryStream = new MemoryStream();
               await context.Response.Body.CopyToAsync(memoryStream);
-              // Reset the position of the response stream to 0
               context.Response.Body.Seek(0, SeekOrigin.Begin);
-              // Do something with the response body
-              // var responseBody = Encoding.UTF8.GetString(memoryStream.ToArray());
-// memoryStream.ToArray()
-// System.Text.Encoding.UTF8.GetBytes(responseBody)
 
               var pathParams = context.GetRouteData().Values
                   .Where(v => !string.IsNullOrEmpty(v.Value?.ToString()))
@@ -62,14 +48,10 @@ namespace ApiToolkit.Net
 
               var responseHeaders = context.Response.Headers.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList());
               var payload = _client.BuildPayload("DotNet", start, context.Request, context.Response.StatusCode,
-                  System.Text.Encoding.UTF8.GetBytes(requestBody),memoryStream.ToArray() , responseHeaders,
+                  System.Text.Encoding.UTF8.GetBytes(requestBody), memoryStream.ToArray() , responseHeaders,
                   pathParams, context.Request.Path);
 
               await _client.PublishMessageAsync(payload);
-
-              // // restore the original response body stream
-              // await responseBodyStream.CopyToAsync(originalResponseBodyStream);
-              // context.Response.Body = originalResponseBodyStream;
           }
         }
 
