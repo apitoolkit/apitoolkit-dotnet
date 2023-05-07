@@ -29,7 +29,8 @@ namespace ApiToolkit.Net
 
         public async Task InvokeAsync(HttpContext context)
         {
-            var start = DateTime.UtcNow;
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
             context.Request.EnableBuffering(); // so we can read the body stream multiple times
 
             try {
@@ -48,7 +49,7 @@ namespace ApiToolkit.Net
                   .ToDictionary(v => v.Key, v => v.Value.ToString());
 
               var responseHeaders = context.Response.Headers.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList());
-              var payload = _client.BuildPayload("DotNet", start, context.Request, context.Response.StatusCode,
+              var payload = _client.BuildPayload("DotNet", stopwatch, context.Request, context.Response.StatusCode,
                   System.Text.Encoding.UTF8.GetBytes(requestBody), memoryStream.ToArray() , responseHeaders,
                   pathParams, context.Request.Path);
 
@@ -138,7 +139,7 @@ namespace ApiToolkit.Net
             }
         }
 
-        public Payload BuildPayload(string SDKType, DateTime trackingStart, HttpRequest req, int statusCode, byte[] reqBody, byte[] respBody, Dictionary<string, List<string>> respHeader, Dictionary<string, string> pathParams, string urlPath)
+        public Payload BuildPayload(string SDKType, Stopwatch stopwatch, HttpRequest req, int statusCode, byte[] reqBody, byte[] respBody, Dictionary<string, List<string>> respHeader, Dictionary<string, string> pathParams, string urlPath)
         {
             if (req == null)
             {
@@ -155,10 +156,10 @@ namespace ApiToolkit.Net
             int[] versionParts = req.Protocol.Split('/', '.').Skip(1).Select(int.Parse).ToArray();
             var (majorVersion, minorVersion) = versionParts.Length >= 2 ? (versionParts[0], versionParts[1]) : (1, 1);
 
-            TimeSpan since = DateTime.UtcNow.Subtract(trackingStart);
+            stopwatch.Stop();
             return new Payload
             {
-                Duration = since.Ticks / 100,
+                Duration = stopwatch.ElapsedTicks * 100,
                 Host = req.Host.Host,
                 Method = req.Method,
                 PathParams = pathParams, 
@@ -202,101 +203,101 @@ namespace ApiToolkit.Net
 
      public class ClientMetadata
     {
-        [JsonPropertyName("project_id")]
+        [JsonProperty("project_id")]
         public string ProjectId { get; set; }
 
-        [JsonPropertyName("pubsub_project_id")]
+        [JsonProperty("pubsub_project_id")]
         public string PubsubProjectId { get; set; }
 
-        [JsonPropertyName("topic_id")]
+        [JsonProperty("topic_id")]
         public string TopicId { get; set; }
 
-        [JsonPropertyName("pubsub_push_service_account")]
+        [JsonProperty("pubsub_push_service_account")]
         public JsonElement PubsubPushServiceAccount { get; set; }
     }
 
     public class Config
     {
-        [JsonPropertyName("debug")]
+        [JsonProperty("debug")]
         public bool Debug { get; set; }
 
-        [JsonPropertyName("verbose_debug")]
+        [JsonProperty("verbose_debug")]
         public bool VerboseDebug { get; set; }
 
-        [JsonPropertyName("root_url")]
+        [JsonProperty("root_url")]
         public string RootUrl { get; set; }
 
-        [JsonPropertyName("api_key")]
+        [JsonProperty("api_key")]
         public string ApiKey { get; set; }
 
-        [JsonPropertyName("project_id")]
+        [JsonProperty("project_id")]
         public string ProjectId { get; set; }
 
-        [JsonPropertyName("redact_headers")]
+        [JsonProperty("redact_headers")]
         public List<string> RedactHeaders { get; set; }
 
-        [JsonPropertyName("redact_request_body")]
+        [JsonProperty("redact_request_body")]
         public List<string> RedactRequestBody { get; set; }
         
-        [JsonPropertyName("redact_response_body")]
+        [JsonProperty("redact_response_body")]
         public List<string> RedactResponseBody { get; set; }
     }
 
     public class Payload
     {
-        [JsonPropertyName("timestamp")]
+        [JsonProperty("timestamp")]
         public DateTime Timestamp { get; set; }
 
-        [JsonPropertyName("request_headers")]
+        [JsonProperty("request_headers")]
         public Dictionary<string, List<string>> RequestHeaders { get; set; }
 
-        [JsonPropertyName("query_params")]
+        [JsonProperty("query_params")]
         public Dictionary<string, List<string>> QueryParams { get; set; }
 
-        [JsonPropertyName("path_params")]
+        [JsonProperty("path_params")]
         public Dictionary<string, string> PathParams { get; set; }
 
-        [JsonPropertyName("response_headers")]
+        [JsonProperty("response_headers")]
         public Dictionary<string, List<string>> ResponseHeaders { get; set; }
 
-        [JsonPropertyName("method")]
+        [JsonProperty("method")]
         public string Method { get; set; }
 
-        [JsonPropertyName("sdk_type")]
+        [JsonProperty("sdk_type")]
         public string SdkType { get; set; }
 
-        [JsonPropertyName("host")]
+        [JsonProperty("host")]
         public string Host { get; set; }
 
-        [JsonPropertyName("raw_url")]
+        [JsonProperty("raw_url")]
         public string RawUrl { get; set; }
 
-        [JsonPropertyName("referer")]
+        [JsonProperty("referer")]
         public string Referer { get; set; }
 
-        [JsonPropertyName("project_id")]
+        [JsonProperty("project_id")]
         public string ProjectId { get; set; }
 
-        [JsonPropertyName("url_path")]
+        [JsonProperty("url_path")]
         public string UrlPath { get; set; }
 
-        [JsonPropertyName("response_body")]
+        [JsonProperty("response_body")]
         public byte[] ResponseBody { get; set; }
 
-        [JsonPropertyName("request_body")]
+        [JsonProperty("request_body")]
         public byte[] RequestBody { get; set; }
 
-        [JsonPropertyName("proto_minor")]
+        [JsonProperty("proto_minor")]
         public int ProtoMinor { get; set; }
 
-        [JsonPropertyName("status_code")]
+        [JsonProperty("status_code")]
         public int StatusCode { get; set; }
 
-        [JsonPropertyName("proto_major")]
+        [JsonProperty("proto_major")]
         public int ProtoMajor { get; set; }
         
         //Nanoseconds
-        [JsonPropertyName("duration")]
+        [JsonProperty("duration")]
         public long Duration { get; set; }
     }
 }

@@ -6,6 +6,10 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Internal;
 using Microsoft.Extensions.Primitives;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Newtonsoft.Json;
+using System.Diagnostics;
 
 public class RedactTests
 {
@@ -93,9 +97,9 @@ public class RedactTests
   {
       // Arrange
       var sdkType = "test-sdk";
-      var trackingStart = DateTime.UtcNow;
       // Create a new HttpContext with custom request headers and query parameters
       var req = new DefaultHttpContext().Request;
+      req.Method = "POST";
       req.Host = new HostString("example.com");
       req.Path = "/path/to/resource";
       req.Headers.Add("Authorization", "Value");
@@ -123,10 +127,14 @@ public class RedactTests
           RedactRequestBody = new List<string> { "$.foo" },
           Debug = true
       };
+
+      Stopwatch stopwatch = new Stopwatch();
+      stopwatch.Start();
+
       var client = new Client(null, null, config, null);
 
       // Act
-      var payload = client.BuildPayload(sdkType, trackingStart, req, statusCode, reqBody, respBody, respHeaders, pathParams, urlPath);
+      var payload = client.BuildPayload(sdkType, stopwatch, req, statusCode, reqBody, respBody, respHeaders, pathParams, urlPath);
 
       // Assert
       Assert.AreEqual(req.Host.Host, payload.Host);
@@ -150,7 +158,9 @@ public class RedactTests
       Assert.AreEqual("application/json", payload.ResponseHeaders["Content-Type"][0]);
       Assert.AreEqual(sdkType, payload.SdkType);
       Assert.AreEqual(statusCode, payload.StatusCode);
+      Assert.AreEqual("POST", payload.Method);
       Assert.GreaterOrEqual(DateTime.UtcNow, payload.Timestamp);
       Assert.AreEqual(urlPath, payload.UrlPath);
+      Console.WriteLine($"APIToolkit: {JsonConvert.SerializeObject(payload)}");
   }
 }
