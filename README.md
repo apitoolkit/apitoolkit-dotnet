@@ -9,7 +9,7 @@ APIToolkit is a lightweight middleware that helps Engineering teams build & main
 Run the following command to install the package into your .NET application:
 
 ```sh
-dotnet add package Treblle.Net.Core
+dotnet add package ApiToolkit.Net
 ```
 
 Now you can initialize APIToolkit in your application's entry point (eg Program.cs)
