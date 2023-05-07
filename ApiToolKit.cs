@@ -1,81 +1,76 @@
 ﻿using System;
-using System.Diagnostics;
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.PubSub.V1;
-using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
+using Google.Protobuf;
+using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Http;
-using Newtonsoft.Json;
+using Microsoft.AspNetCore.Routing;
+// using Microsoft.AspNetCore.Routing;
+using NUnit.Framework;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
+using System.Diagnostics;
 
-namespace ApiToolKit.Net
+namespace ApiToolkit.Net
 {
-    public class APIToolKit
+    public class APIToolkit
     {
         private readonly RequestDelegate _next;
         private readonly Client _client;
         Stopwatch stopwatch = new Stopwatch();
 
-        public APIToolKit(RequestDelegate next, Client client)
+        public APIToolkit(RequestDelegate next, Client client)
         {
             _next = next;
             _client = client;
         }
 
-        // public async Task InvokeAsync(HttpContext context, Client client)
-        // {
-        //     try
-        //     {
-        //         stopwatch.Start();
-
-                
-
-        //         stopwatch.Stop();
-
-        //         await _next(context);
-        //     }
-        //     catch (System.Exception)
-        //     {
-                
-        //         throw;
-        //     }
-        // }
-
         public async Task InvokeAsync(HttpContext context)
         {
             var start = DateTime.UtcNow;
-            var request = context.Request;
-            request.EnableBuffering(); // so we can read the body stream multiple times
+            context.Request.EnableBuffering(); // so we can read the body stream multiple times
 
-            var requestBody = await new StreamReader(request.Body).ReadToEndAsync();
-            request.Body.Position = 0; // reset the body stream to the beginning
+            // var requestBody = await new StreamReader(request.Body).ReadToEndAsync();
+            // request.Body.Position = 0; // reset the body stream to the beginning
 
-            var responseBodyStream = new MemoryStream();
-            var originalResponseBodyStream = context.Response.Body;
-            context.Response.Body = responseBodyStream;
+            // var responseBodyStream = new MemoryStream();
+            // var originalResponseBodyStream = context.Response.Body;
+            // context.Response.Body = responseBodyStream;
 
-            await _next(context); // execute the next middleware in the pipeline
+            try {
+              await _next(context); // execute the next middleware in the pipeline
+            } finally {
+              // responseBodyStream.Seek(0, SeekOrigin.Begin);
+              // var responseBody = await new StreamReader(responseBodyStream).ReadToEndAsync();
+              // responseBodyStream.Seek(0, SeekOrigin.Begin);
 
-            responseBodyStream.Seek(0, SeekOrigin.Begin);
-            var responseBody = await new StreamReader(responseBodyStream).ReadToEndAsync();
-            responseBodyStream.Seek(0, SeekOrigin.Begin);
+              // Read the response body
+              context.Response.Body.Seek(0, SeekOrigin.Begin);
+              var memoryStream = new MemoryStream();
+              await context.Response.Body.CopyToAsync(memoryStream);
+              // Reset the position of the response stream to 0
+              context.Response.Body.Seek(0, SeekOrigin.Begin);
+              // Do something with the response body
+              // var responseBody = Encoding.UTF8.GetString(memoryStream.ToArray());
+// memoryStream.ToArray()
+// System.Text.Encoding.UTF8.GetBytes(responseBody)
 
-            var pathParams = new Dictionary<string, string>();
-            // foreach (var param in context.Request.RouteValues)
-            // {
-            //     pathParams[param.Key] = param.Value.ToString();
-            // }
+              var pathParams = context.GetRouteData().Values
+                  .Where(v => !string.IsNullOrEmpty(v.Value?.ToString()))
+                  .ToDictionary(v => v.Key, v => v.Value.ToString());
 
+              var responseHeaders = context.Response.Headers.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList());
+              var payload = _client.BuildPayload("DotNet", start, context.Request, context.Response.StatusCode,
+                  System.Text.Encoding.UTF8.GetBytes(requestBody),memoryStream.ToArray() , responseHeaders,
+                  pathParams, context.Request.Path);
 
-            var payload = _client.BuildPayload("DotNet", start, context.Request, context.Response.StatusCode,
-                System.Text.Encoding.UTF8.GetBytes(requestBody), System.Text.Encoding.UTF8.GetBytes(responseBody), context.Response.Headers.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList()),
-                pathParams, context.Request.Path);
+              await _client.PublishMessageAsync(payload);
 
-            await _client.PublishMessageAsync(payload);
-
-            // restore the original response body stream
-            await responseBodyStream.CopyToAsync(originalResponseBodyStream);
-            context.Response.Body = originalResponseBodyStream;
+              // // restore the original response body stream
+              // await responseBodyStream.CopyToAsync(originalResponseBodyStream);
+              // context.Response.Body = originalResponseBodyStream;
+          }
         }
 
         public static async Task<Client> NewClientAsync(Config cfg)
@@ -89,14 +84,12 @@ namespace ApiToolKit.Net
             var _httpClient = new HttpClient();
              _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {cfg.ApiKey}");
             var response = await _httpClient.GetAsync($"{url}/api/client_metadata");
-
             if (!response.IsSuccessStatusCode)
             {
                 throw new Exception($"Unable to query apitoolkit for client metadata: {response.StatusCode}");
             }
 
             var clientMetadata = JsonConvert.DeserializeObject<ClientMetadata>(await response.Content.ReadAsStringAsync());
-
             if (clientMetadata is null)
             {
                 throw new Exception("Unable to deserialize client metadata response");
@@ -108,19 +101,13 @@ namespace ApiToolKit.Net
 
             var publisher = new PublisherClientBuilder();
             publisher.Credential = credentials;
-
             publisher.TopicName = new TopicName(clientMetadata.PubsubProjectId, clientMetadata.TopicId);
-
             var pubsubClient = publisher.Build();
-
             var client = new Client(pubsubClient, null, cfg, clientMetadata);
-            
-
             if (client.Config.Debug)
             {
                 Console.WriteLine("APIToolkit: client initialized successfully");
             }
-
             return client;
         }
     }
@@ -143,62 +130,47 @@ namespace ApiToolKit.Net
 
         public async Task PublishMessageAsync(Payload payload)
         {
-            // if (goReqsTopic == null)
-            // {
-            //     if (config.Debug)
-            //     {
-            //         Console.WriteLine("APIToolkit: topic is not initialized. Check client initialization");
-            //     }
-            //     throw new Exception("topic is not initialized");
-            // }
-
-            var jsonPayload = JsonConvert.SerializeObject(payload);
-
-            Console.WriteLine($"PublishMessageAsync JsonPayLoad ----- {jsonPayload}");
-
-            var message = new PubsubMessage
+            if (PubSubClient == null)
             {
-                Data = ByteString.CopyFromUtf8(jsonPayload),
+                if (Config.Debug)
+                {
+                    Console.WriteLine("APIToolkit: topic is not initialized. Check client initialization. Messages are not being sent to apitoolkit");
+                }
+                return;
+            }
+
+            await PubSubClient.PublishAsync(new PubsubMessage {
+                Data = ByteString.CopyFromUtf8(JsonConvert.SerializeObject(payload)),
                 PublishTime = Timestamp.FromDateTime(DateTime.UtcNow),
-            };
+            });
 
-            await PubSubClient.PublishAsync(message);
+            if (Config.Debug)
+            {
+                Console.WriteLine("APIToolkit: message published to pubsub topic");
 
-            // if (config.Debug)
-            // {
-            //     Console.WriteLine("APIToolkit: message published to pubsub topic");
-
-            //     if (config.VerboseDebug)
-            //     {
-            //         Console.WriteLine($"APIToolkit: {jsonPayload}");
-            //     }
-            // }
+                if (Config.VerboseDebug)
+                {
+                  Console.WriteLine($"APIToolkit: {JsonConvert.SerializeObject(payload)}");
+                }
+            }
         }
 
-        public Payload BuildPayload(string SDKType, DateTime trackingStart, HttpRequest req, int statusCode, byte[] reqBody, byte[] respBody, Dictionary<string, List<string>> respHeader, IDictionary<string, string> pathParams, string urlPath)
+        public Payload BuildPayload(string SDKType, DateTime trackingStart, HttpRequest req, int statusCode, byte[] reqBody, byte[] respBody, Dictionary<string, List<string>> respHeader, Dictionary<string, string> pathParams, string urlPath)
         {
             if (req == null)
             {
                 // Early return with empty payload to prevent any null reference exceptions
-                // if (config.Debug)
-                // {
-                //     Console.WriteLine("APIToolkit: null request or client or url while building payload.");
-                // }
+                if (Config.Debug)
+                {
+                    Console.WriteLine("APIToolkit: null request or client or url while building payload.");
+                }
                 return new Payload();
             }
-            string projectId = "";
-            if (Metadata != null)
-            {
-                projectId = Metadata.ProjectId;
-            }
-
-            // List<string> redactedHeaders = new List<string>();
-            // foreach (var v in Config.RedactHeaders)
-            // {
-            //     redactedHeaders.Add(v.ToLower());
-            // }
+            string projectId = Metadata is null ? "" : Metadata.ProjectId;
 
             var reqHeaders = req.Headers.ToDictionary(h => h.Key,h => h.Value.ToList());
+            int[] versionParts = req.Protocol.Split('/', '.').Skip(1).Select(int.Parse).ToArray();
+            var (majorVersion, minorVersion) = versionParts.Length >= 2 ? (versionParts[0], versionParts[1]) : (1, 1);
 
             TimeSpan since = DateTime.UtcNow.Subtract(trackingStart);
             return new Payload
@@ -206,19 +178,16 @@ namespace ApiToolKit.Net
                 Duration = since.Ticks / 100,
                 Host = req.Host.Host,
                 Method = req.Method,
-                PathParams = null, // replace with appropriate code if necessary
+                PathParams = pathParams, 
                 ProjectId = projectId,
-                ProtoMajor = 1,
-                ProtoMinor = 1,
-                // QueryParams = req.RequestUri.Query.ToDictionary(h => h.Key,h => h.Value.ToList()),
-                QueryParams = null,
-                // RawUrl = req.RequestUri.AbsoluteUri,
-                // Referer = req.Headers.Referrer?.AbsoluteUri,
-                RawUrl = req.Scheme + "://" + req.Host + req.Path + req.QueryString,
+                ProtoMajor = majorVersion,
+                ProtoMinor = minorVersion,
+                QueryParams = req.Query.ToDictionary(kv => kv.Key, kv => kv.Value.ToList()),
+                RawUrl = req.GetEncodedPathAndQuery(),
                 Referer = req.Headers["Referer"].ToString(),
-                RequestBody = Redact(reqBody, Config.RedactRequestBody),
+                RequestBody = RedactJSON(reqBody, Config.RedactRequestBody),
                 RequestHeaders = RedactHeaders(reqHeaders, Config.RedactHeaders),
-                ResponseBody = Redact(respBody, Config.RedactResponseBody),
+                ResponseBody = RedactJSON(respBody, Config.RedactResponseBody),
                 ResponseHeaders = RedactHeaders(respHeader, Config.RedactHeaders),
                 SdkType = SDKType,
                 StatusCode = statusCode,
@@ -227,42 +196,26 @@ namespace ApiToolKit.Net
             };
         }
 
-        public static byte[] Redact(byte[] data, List<string> redactList)
+
+        public static byte[] RedactJSON(byte[] data, List<string> jsonPaths)
         {
-            // var obj = JToken.Parse(System.Text.Encoding.UTF8.GetString(data));
-            // var config = new JsonPath.JsonPathConfig { UseXmlNotation = true };
-            // var path = new JsonPath.JsonPath(config);
-            // foreach (var key in redactList)
-            // {
-            //     var results = path.Evaluate(key, obj);
-            //     foreach (var result in results)
-            //     {
-            //         if (result.Value is JsonPath.Accessor accessor)
-            //         {
-            //             accessor.Value = "[CLIENT_REDACTED]";
-            //         }
-            //     }
-            // }
-            // return System.Text.Encoding.UTF8.GetBytes(obj.ToString());
-            return data;
+            JObject jsonObject = JObject.Parse(System.Text.Encoding.UTF8.GetString(data));
+            (jsonPaths ?? new List<string>()).ForEach(jPath => jsonObject.SelectTokens(jPath).ToList().ForEach(token => token.Replace("[CLIENT_REDACTED]")));
+            return System.Text.Encoding.UTF8.GetBytes(jsonObject.ToString());
         }
+
 
         public static Dictionary<string, List<string>> RedactHeaders(Dictionary<string, List<string>> headers, List<string> redactList)
         {
-            if(redactList is null)
-            {
-                return headers;
-            }
-            foreach (var key in headers.Keys.ToArray())
-            {
-                if (redactList.Contains(key.ToLower()))
-                {
-                    headers[key] = new string[] { "[CLIENT_REDACTED]" }.ToList();
-                }
-            }
-            return headers;
+            redactList = (redactList ?? new List<string>()).Select(s => s.ToLower()).ToList();
+            return headers
+                .ToDictionary(
+                    kvp => redactList.Contains(kvp.Key.ToLower()) ? kvp.Key : kvp.Key,
+                    kvp => redactList.Contains(kvp.Key.ToLower()) ? new List<string> { "[CLIENT_REDACTED]" } : kvp.Value
+                );
         }
     }
+
 
      public class ClientMetadata
     {
