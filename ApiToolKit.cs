@@ -11,6 +11,7 @@ using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Net;
 using System.Text.Json.Serialization;
 
 namespace ApiToolkit.Net
@@ -53,19 +54,28 @@ namespace ApiToolkit.Net
 
               var responseHeaders = context.Response.Headers.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList());
               var payload = _client.BuildPayload("DotNet", stopwatch, context.Request, context.Response.StatusCode,
-                  System.Text.Encoding.UTF8.GetBytes(requestBody), await GetResponseBodyBytesAsync(context.Response.Body), responseHeaders,
-                  pathParams, context.Request.Path);
+                  System.Text.Encoding.UTF8.GetBytes(requestBody), await GetResponseBodyBytesAsync(context.Response.Body), 
+                  responseHeaders, pathParams, context.Request.Path);
 
               await _client.PublishMessageAsync(payload);
           }
         }
 
-        public static async Task<byte[]> GetResponseBodyBytesAsync(Stream responseStream)
+        // public static async Task<byte[]> GetResponseBodyBytesAsync(Stream responseStream)
+        // {
+        //     responseStream.Seek(0, SeekOrigin.Begin);
+        //     var memoryStream = new MemoryStream();
+        //     await responseStream.CopyToAsync(memoryStream);
+        //     responseStream.Seek(0, SeekOrigin.Begin);
+
+        //     return memoryStream.ToArray();
+        // }
+        public static async Task<byte[]> GetResponseBodyBytesAsync(HttpResponseStream responseStream)
         {
-            responseStream.Seek(0, SeekOrigin.Begin);
+            responseStream.Body.Position = 0;
             var memoryStream = new MemoryStream();
-            await responseStream.CopyToAsync(memoryStream);
-            responseStream.Seek(0, SeekOrigin.Begin);
+            await responseStream.Body.CopyToAsync(memoryStream);
+            responseStream.Body.Position = 0;
 
             return memoryStream.ToArray();
         }
