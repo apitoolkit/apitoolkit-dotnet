@@ -35,6 +35,10 @@ namespace ApiToolkit.Net
             stopwatch.Start();
             context.Request.EnableBuffering(); // so we can read the body stream multiple times
 
+            var responseBodyStream = new MemoryStream();
+            var originalResponseBodyStream = context.Response.Body;
+            context.Response.Body = responseBodyStream;
+
             try 
             {
               await _next(context); // execute the next middleware in the pipeline
@@ -44,10 +48,12 @@ namespace ApiToolkit.Net
               var requestBody = await new StreamReader(context.Request.Body).ReadToEndAsync();
               context.Request.Body.Position = 0; // reset the body stream to the beginning
 
-              // context.Response.Body.Seek(0, SeekOrigin.Begin);
-              // var memoryStream = new MemoryStream();
-              // await context.Response.Body.CopyToAsync(memoryStream);
-              // context.Response.Body.Seek(0, SeekOrigin.Begin);
+              responseBodyStream.Seek(0, SeekOrigin.Begin);
+              var responseBody = await new StreamReader(responseBodyStream).ReadToEndAsync();
+              responseBodyStream.Seek(0, SeekOrigin.Begin);
+
+              await responseBodyStream.CopyToAsync(originalResponseBodyStream);
+              context.Response.Body = originalResponseBodyStream;
 
               var pathParams = context.GetRouteData().Values
                   .Where(v => !string.IsNullOrEmpty(v.Value?.ToString()))
@@ -55,7 +61,7 @@ namespace ApiToolkit.Net
 
               var responseHeaders = context.Response.Headers.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList());
               var payload = _client.BuildPayload("DotNet", stopwatch, context.Request, context.Response.StatusCode,
-                  System.Text.Encoding.UTF8.GetBytes(requestBody), await GetResponseBodyBytesAsync(context.Response.Body), 
+                  System.Text.Encoding.UTF8.GetBytes(requestBody), System.Text.Encoding.UTF8.GetBytes(responseBody), 
                   responseHeaders, pathParams, context.Request.Path);
 
               await _client.PublishMessageAsync(payload);
@@ -207,6 +213,7 @@ namespace ApiToolkit.Net
 
         public static byte[] RedactJSON(byte[] data, List<string> jsonPaths)
         {
+            Console.WriteLine($"Blabla {System.Text.Encoding.UTF8.GetString(data)}");
             JObject jsonObject = JObject.Parse(System.Text.Encoding.UTF8.GetString(data));
             (jsonPaths ?? new List<string>()).ForEach(jPath => jsonObject.SelectTokens(jPath).ToList().ForEach(token => token.Replace("[CLIENT_REDACTED]")));
             return System.Text.Encoding.UTF8.GetBytes(jsonObject.ToString());

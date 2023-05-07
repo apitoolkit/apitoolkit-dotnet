@@ -15,6 +15,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.Builder;
 // using Moq;
 
 public class RedactTests
@@ -195,104 +197,31 @@ public class RedactTests
         ApiKey = "xa5IJMIePi4zlddOgqZsTDxL9DmQHdKevbK+1exYoWoApI6W"
     };
     var client = await APIToolkit.NewClientAsync(config);
-    using var host = await new HostBuilder()
-        .ConfigureWebHost(webBuilder =>
+    var host = await new HostBuilder()
+        .ConfigureWebHostDefaults(webBuilder =>
         {
             webBuilder
                 .UseTestServer()
-                .ConfigureServices(services =>
-                {
-                    services.AddMyServices();
-                })
                 .Configure(app =>
                 {
-                    // app.UseMiddleware<MyMiddleware>();
                     app.Use(async (context, next) =>
                     {
-                        var apiToolkit = new APIToolkit(next, client);
+                        var apiToolkit = new ApiToolkit.Net.APIToolkit(next, client);
                         await apiToolkit.InvokeAsync(context);
                     });
+                    // app.Use(async (context, next) =>
+                    // {
+                    //     var input = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                    //     context.Response.ContentType = "application/json";
+                    //     await context.Response.WriteAsync(input);
+                    // });
                 });
         })
         .StartAsync();
 
-    var response = await host.GetTestClient().GetAsync("/");
-
-    // ...
+    using var c = host.GetTestClient();
+    var body = new { Property1 = "Value1", Property2 = "Value2" };
+    var response = await c.PostAsync("/", new StringContent(JsonConvert.SerializeObject(body), Encoding.UTF8, "application/json"));
   }
 }
 
-
-// [TestFixture]
-// public class MyMiddlewareTests
-// {
-//     private TestServer _server;
-
-//     [SetUp]
-//     public async void SetUp()
-//     {
-//         // app.UseMyMiddleware();
-//         var config = new Config
-//         {
-//             ApiKey = "xa5IJMIePi4zlddOgqZsTDxL9DmQHdKevbK+1exYoWoApI6W"
-//         };
-//         var client = await APIToolkit.NewClientAsync(config);
-
-//         var webHostBuilder = new WebHostBuilder()
-//             .Configure(app =>
-//             {
-//                 // app.UseMyMiddleware();
-//                 app.Use(async (context, next) =>
-//                 {
-//                     var apiToolkit = new APIToolkit(next, client);
-//                     await apiToolkit.InvokeAsync(context);
-//                 });
-//             });
-
-//         // var webHostBuilder = new WebHostBuilder()
-//         //     // .ConfigureServices(services =>
-//         //     // {
-//         //     //     // services.AddSingleton<IMyService, MyService>();
-//         //     // })
-//         //     .Configure(app =>
-//         //     {
-//         //         app.Use(async (context, next) =>
-//         //         {
-//         //             var apiToolkit = new APIToolkit(next, client);
-//         //             await apiToolkit.InvokeAsync(context);
-//         //         });
-//         //     });
-//             // .Use(async (context, next) =>
-//             //     {
-//             //         var config = new Config
-//             //         {
-//             //             ApiKey = "xa5IJMIePi4zlddOgqZsTDxL9DmQHdKevbK+1exYoWoApI6W"
-//             //         };
-//             //         var client = await APIToolkit.NewClientAsync(config);
-//             //         var apiToolkit = new APIToolkit(next, client);
-//             //         await apiToolkit.InvokeAsync(context);
-//             //     });
-
-//         _server = new TestServer(webHostBuilder);
-//     }
-
-//     [TearDown]
-//     public void TearDown()
-//     {
-//         _server.Dispose();
-//     }
-
-//     [Test]
-//     public async Task TestMyMiddleware()
-//     {
-//         // Arrange
-//         var client = _server.CreateClient();
-//         var request = new HttpRequestMessage(HttpMethod.Get, "/api/test");
-
-//         // Act
-//         var response = await client.SendAsync(request);
-
-//         // Assert
-//         response.EnsureSuccessStatusCode();
-//     }
-// }
