@@ -33,9 +33,12 @@ namespace ApiToolkit.Net
             stopwatch.Start();
             context.Request.EnableBuffering(); // so we can read the body stream multiple times
 
-            try {
+            try 
+            {
               await _next(context); // execute the next middleware in the pipeline
-            } finally {
+            } 
+            finally 
+            {
               var requestBody = await new StreamReader(context.Request.Body).ReadToEndAsync();
               context.Request.Body.Position = 0; // reset the body stream to the beginning
 
@@ -223,7 +226,7 @@ namespace ApiToolkit.Net
         public string TopicId { get; set; }
 
         [JsonProperty("pubsub_push_service_account")]
-        public JsonElement PubsubPushServiceAccount { get; set; }
+        public JRaw PubsubPushServiceAccount { get; set; }
     }
 
     public class Config
