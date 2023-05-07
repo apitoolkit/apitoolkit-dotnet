@@ -11,8 +11,6 @@ using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 using System.Diagnostics;
 using System.Text.Json;
-using System.Net;
-using System.Text.Json.Serialization;
 
 namespace ApiToolkit.Net
 {
@@ -34,6 +32,10 @@ namespace ApiToolkit.Net
             stopwatch.Start();
             context.Request.EnableBuffering(); // so we can read the body stream multiple times
 
+            var responseBodyStream = new MemoryStream();
+            var originalResponseBodyStream = context.Response.Body;
+            context.Response.Body = responseBodyStream;
+
             try 
             {
               await _next(context); // execute the next middleware in the pipeline
@@ -43,41 +45,23 @@ namespace ApiToolkit.Net
               var requestBody = await new StreamReader(context.Request.Body).ReadToEndAsync();
               context.Request.Body.Position = 0; // reset the body stream to the beginning
 
-              // context.Response.Body.Seek(0, SeekOrigin.Begin);
-              // var memoryStream = new MemoryStream();
-              // await context.Response.Body.CopyToAsync(memoryStream);
-              // context.Response.Body.Seek(0, SeekOrigin.Begin);
+              responseBodyStream.Seek(0, SeekOrigin.Begin);
+              var responseBody = await new StreamReader(responseBodyStream).ReadToEndAsync();
+              await responseBodyStream.CopyToAsync(originalResponseBodyStream);
+              context.Response.Body = originalResponseBodyStream;
 
               var pathParams = context.GetRouteData().Values
                   .Where(v => !string.IsNullOrEmpty(v.Value?.ToString()))
                   .ToDictionary(v => v.Key, v => v.Value.ToString());
 
               var responseHeaders = context.Response.Headers.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList());
+
               var payload = _client.BuildPayload("DotNet", stopwatch, context.Request, context.Response.StatusCode,
-                  System.Text.Encoding.UTF8.GetBytes(requestBody), await GetResponseBodyBytesAsync(context.Response.Body), 
+                  System.Text.Encoding.UTF8.GetBytes(requestBody), System.Text.Encoding.UTF8.GetBytes(responseBody), 
                   responseHeaders, pathParams, context.Request.Path);
 
               await _client.PublishMessageAsync(payload);
           }
-        }
-
-        // public static async Task<byte[]> GetResponseBodyBytesAsync(Stream responseStream)
-        // {
-        //     responseStream.Seek(0, SeekOrigin.Begin);
-        //     var memoryStream = new MemoryStream();
-        //     await responseStream.CopyToAsync(memoryStream);
-        //     responseStream.Seek(0, SeekOrigin.Begin);
-
-        //     return memoryStream.ToArray();
-        // }
-        public static async Task<byte[]> GetResponseBodyBytesAsync(HttpResponseStream responseStream)
-        {
-            responseStream.Body.Position = 0;
-            var memoryStream = new MemoryStream();
-            await responseStream.Body.CopyToAsync(memoryStream);
-            responseStream.Body.Position = 0;
-
-            return memoryStream.ToArray();
         }
 
         public static async Task<Client> NewClientAsync(Config cfg)
@@ -93,13 +77,13 @@ namespace ApiToolkit.Net
             var response = await _httpClient.GetAsync($"{url}/api/client_metadata");
             if (!response.IsSuccessStatusCode)
             {
-                throw new Exception($"Unable to query apitoolkit for client metadata: {response.StatusCode}");
+                throw new Exception($"APIToolkit: Unable to query apitoolkit for client metadata: {response.StatusCode}");
             }
 
             var clientMetadata = JsonConvert.DeserializeObject<ClientMetadata>(await response.Content.ReadAsStringAsync());
             if (clientMetadata is null)
             {
-                throw new Exception("Unable to deserialize client metadata response");
+                throw new Exception("APIToolkit: Unable to deserialize client metadata response");
             }
 
             var credentials = GoogleCredential
@@ -164,7 +148,7 @@ namespace ApiToolkit.Net
 
         public Payload BuildPayload(string SDKType, Stopwatch stopwatch, HttpRequest req, int statusCode, byte[] reqBody, byte[] respBody, Dictionary<string, List<string>> respHeader, Dictionary<string, string> pathParams, string urlPath)
         {
-            if (req == null)
+            if (req == null || Metadata is null)
             {
                 // Early return with empty payload to prevent any null reference exceptions
                 if (Config.Debug)
@@ -206,9 +190,18 @@ namespace ApiToolkit.Net
 
         public static byte[] RedactJSON(byte[] data, List<string> jsonPaths)
         {
-            JObject jsonObject = JObject.Parse(System.Text.Encoding.UTF8.GetString(data));
-            (jsonPaths ?? new List<string>()).ForEach(jPath => jsonObject.SelectTokens(jPath).ToList().ForEach(token => token.Replace("[CLIENT_REDACTED]")));
-            return System.Text.Encoding.UTF8.GetBytes(jsonObject.ToString());
+            if (jsonPaths is null || jsonPaths.Count == 0 || !data.Any()) return data;
+
+            try
+            {
+                JObject jsonObject = JObject.Parse(System.Text.Encoding.UTF8.GetString(data));
+                (jsonPaths ?? new List<string>()).ForEach(jPath => jsonObject.SelectTokens(jPath).ToList().ForEach(token => token.Replace("[CLIENT_REDACTED]")));
+                return System.Text.Encoding.UTF8.GetBytes(jsonObject.ToString());
+            }
+            catch (Exception)
+            {
+                return data;
+            }
         }
 
 
@@ -241,28 +234,12 @@ namespace ApiToolkit.Net
 
     public class Config
     {
-        [JsonProperty("debug")]
         public bool Debug { get; set; }
-
-        [JsonProperty("verbose_debug")]
         public bool VerboseDebug { get; set; }
-
-        [JsonProperty("root_url")]
         public string RootUrl { get; set; }
-
-        [JsonProperty("api_key")]
         public string ApiKey { get; set; }
-
-        [JsonProperty("project_id")]
-        public string ProjectId { get; set; }
-
-        [JsonProperty("redact_headers")]
         public List<string> RedactHeaders { get; set; }
-
-        [JsonProperty("redact_request_body")]
         public List<string> RedactRequestBody { get; set; }
-        
-        [JsonProperty("redact_response_body")]
         public List<string> RedactResponseBody { get; set; }
     }
 
