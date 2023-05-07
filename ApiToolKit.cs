@@ -6,11 +6,12 @@ using Google.Protobuf;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-// using Microsoft.AspNetCore.Routing;
 using NUnit.Framework;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace ApiToolkit.Net
 {
@@ -201,101 +202,101 @@ namespace ApiToolkit.Net
 
      public class ClientMetadata
     {
-        [JsonProperty("project_id")]
+        [JsonPropertyName("project_id")]
         public string ProjectId { get; set; }
 
-        [JsonProperty("pubsub_project_id")]
+        [JsonPropertyName("pubsub_project_id")]
         public string PubsubProjectId { get; set; }
 
-        [JsonProperty("topic_id")]
+        [JsonPropertyName("topic_id")]
         public string TopicId { get; set; }
 
-        [JsonProperty("pubsub_push_service_account")]
-        public JRaw PubsubPushServiceAccount { get; set; }
+        [JsonPropertyName("pubsub_push_service_account")]
+        public JsonElement PubsubPushServiceAccount { get; set; }
     }
 
     public class Config
     {
-        [JsonProperty("debug")]
+        [JsonPropertyName("debug")]
         public bool Debug { get; set; }
 
-        [JsonProperty("verbose_debug")]
+        [JsonPropertyName("verbose_debug")]
         public bool VerboseDebug { get; set; }
 
-        [JsonProperty("root_url")]
+        [JsonPropertyName("root_url")]
         public string RootUrl { get; set; }
 
-        [JsonProperty("api_key")]
+        [JsonPropertyName("api_key")]
         public string ApiKey { get; set; }
 
-        [JsonProperty("project_id")]
+        [JsonPropertyName("project_id")]
         public string ProjectId { get; set; }
 
-        [JsonProperty("redact_headers")]
+        [JsonPropertyName("redact_headers")]
         public List<string> RedactHeaders { get; set; }
 
-        [JsonProperty("redact_request_body")]
+        [JsonPropertyName("redact_request_body")]
         public List<string> RedactRequestBody { get; set; }
         
-        [JsonProperty("redact_response_body")]
+        [JsonPropertyName("redact_response_body")]
         public List<string> RedactResponseBody { get; set; }
     }
 
     public class Payload
     {
-        [JsonProperty("timestamp")]
+        [JsonPropertyName("timestamp")]
         public DateTime Timestamp { get; set; }
 
-        [JsonProperty("request_headers")]
+        [JsonPropertyName("request_headers")]
         public Dictionary<string, List<string>> RequestHeaders { get; set; }
 
-        [JsonProperty("query_params")]
+        [JsonPropertyName("query_params")]
         public Dictionary<string, List<string>> QueryParams { get; set; }
 
-        [JsonProperty("path_params")]
+        [JsonPropertyName("path_params")]
         public Dictionary<string, string> PathParams { get; set; }
 
-        [JsonProperty("response_headers")]
+        [JsonPropertyName("response_headers")]
         public Dictionary<string, List<string>> ResponseHeaders { get; set; }
 
-        [JsonProperty("method")]
+        [JsonPropertyName("method")]
         public string Method { get; set; }
 
-        [JsonProperty("sdk_type")]
+        [JsonPropertyName("sdk_type")]
         public string SdkType { get; set; }
 
-        [JsonProperty("host")]
+        [JsonPropertyName("host")]
         public string Host { get; set; }
 
-        [JsonProperty("raw_url")]
+        [JsonPropertyName("raw_url")]
         public string RawUrl { get; set; }
 
-        [JsonProperty("referer")]
+        [JsonPropertyName("referer")]
         public string Referer { get; set; }
 
-        [JsonProperty("project_id")]
+        [JsonPropertyName("project_id")]
         public string ProjectId { get; set; }
 
-        [JsonProperty("url_path")]
+        [JsonPropertyName("url_path")]
         public string UrlPath { get; set; }
 
-        [JsonProperty("response_body")]
+        [JsonPropertyName("response_body")]
         public byte[] ResponseBody { get; set; }
 
-        [JsonProperty("request_body")]
+        [JsonPropertyName("request_body")]
         public byte[] RequestBody { get; set; }
 
-        [JsonProperty("proto_minor")]
+        [JsonPropertyName("proto_minor")]
         public int ProtoMinor { get; set; }
 
-        [JsonProperty("status_code")]
+        [JsonPropertyName("status_code")]
         public int StatusCode { get; set; }
 
-        [JsonProperty("proto_major")]
+        [JsonPropertyName("proto_major")]
         public int ProtoMajor { get; set; }
         
         //Nanoseconds
-        [JsonProperty("duration")]
+        [JsonPropertyName("duration")]
         public long Duration { get; set; }
     }
 }
