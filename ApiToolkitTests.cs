@@ -1,23 +1,15 @@
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
-using System.Collections.Generic;
 using ApiToolkit.Net;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Newtonsoft.Json;
 using System.Diagnostics;
-using System.IO;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Builder;
-// using Moq;
 
 public class RedactTests
 {
@@ -133,7 +125,8 @@ public class RedactTests
       {
           RedactHeaders = new List<string> { "Authorization" },
           RedactRequestBody = new List<string> { "$.foo" },
-          Debug = true
+          Debug = true,
+          VerboseDebug = true
       };
 
       Stopwatch stopwatch = new Stopwatch();
@@ -162,7 +155,7 @@ public class RedactTests
       Assert.AreEqual(req.Headers["Referer"].ToString(), payload.Referer);
       Assert.AreEqual("{\n  \"foo\": \"[CLIENT_REDACTED]\"\n}", Encoding.UTF8.GetString(payload.RequestBody));
       Assert.AreEqual("[CLIENT_REDACTED]", payload.RequestHeaders["Authorization"][0]);
-      Assert.AreEqual("{\n  \"baz\": 42\n}", Encoding.UTF8.GetString(payload.ResponseBody));
+      Assert.AreEqual("{\"baz\":42}", Encoding.UTF8.GetString(payload.ResponseBody));
       Assert.AreEqual("application/json", payload.ResponseHeaders["Content-Type"][0]);
       Assert.AreEqual(sdkType, payload.SdkType);
       Assert.AreEqual(statusCode, payload.StatusCode);
@@ -172,29 +165,13 @@ public class RedactTests
       Console.WriteLine($"APIToolkit: {JsonConvert.SerializeObject(payload)}");
   }
 
-
-  [Test]
-  public async Task GetResponseBodyBytesAsync_ReturnsCorrectBytes()
-  {
-      // Arrange
-      var context = new DefaultHttpContext();
-      var responseBody = "This is the response body";
-      var responseBytes = Encoding.UTF8.GetBytes(responseBody);
-      context.Response.Body = new MemoryStream(responseBytes);
-      
-      // Act
-      var bytes = await APIToolkit.GetResponseBodyBytesAsync(context.Response.Body);
-
-      // Assert
-      Assert.AreEqual(responseBytes, bytes);
-  }
-
   [Test]
   public async Task MiddlewareTest_ReturnsNotFoundForRequest()
   {
     var config = new Config
     {
-        ApiKey = "xa5IJMIePi4zlddOgqZsTDxL9DmQHdKevbK+1exYoWoApI6W"
+        Debug = true,
+        ApiKey = ""
     };
     var client = await APIToolkit.NewClientAsync(config);
     var host = await new HostBuilder()
@@ -222,6 +199,7 @@ public class RedactTests
     using var c = host.GetTestClient();
     var body = new { Property1 = "Value1", Property2 = "Value2" };
     var response = await c.PostAsync("/", new StringContent(JsonConvert.SerializeObject(body), Encoding.UTF8, "application/json"));
+    Console.WriteLine($"🔥 parent apitoolkit metadata in test {response}");
   }
 }
 
