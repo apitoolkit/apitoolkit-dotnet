@@ -18,7 +18,6 @@ namespace ApiToolkit.Net
     {
         private readonly RequestDelegate _next;
         private readonly Client _client;
-        Stopwatch stopwatch = new Stopwatch();
 
         public APIToolkit(RequestDelegate next, Client client)
         {
@@ -36,32 +35,34 @@ namespace ApiToolkit.Net
             var originalResponseBodyStream = context.Response.Body;
             context.Response.Body = responseBodyStream;
 
-            try 
+            try
             {
-              await _next(context); // execute the next middleware in the pipeline
-            } 
-            finally 
+                await _next(context); // execute the next middleware in the pipeline
+            }
+            finally
             {
-              var requestBody = await new StreamReader(context.Request.Body).ReadToEndAsync();
-              context.Request.Body.Position = 0; // reset the body stream to the beginning
+                var requestBody = await new StreamReader(context.Request.Body).ReadToEndAsync();
+                context.Request.Body.Position = 0; // reset the body stream to the beginning
 
-              responseBodyStream.Seek(0, SeekOrigin.Begin);
-              var responseBody = await new StreamReader(responseBodyStream).ReadToEndAsync();
-              await responseBodyStream.CopyToAsync(originalResponseBodyStream);
-              context.Response.Body = originalResponseBodyStream;
+                responseBodyStream.Seek(0, SeekOrigin.Begin);
+                var responseBody = await new StreamReader(responseBodyStream).ReadToEndAsync();
+                responseBodyStream.Seek(0, SeekOrigin.Begin);
 
-              var pathParams = context.GetRouteData().Values
-                  .Where(v => !string.IsNullOrEmpty(v.Value?.ToString()))
-                  .ToDictionary(v => v.Key, v => v.Value.ToString());
+                await responseBodyStream.CopyToAsync(originalResponseBodyStream);
+                context.Response.Body = originalResponseBodyStream;
 
-              var responseHeaders = context.Response.Headers.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList());
+                var pathParams = context.GetRouteData().Values
+                    .Where(v => !string.IsNullOrEmpty(v.Value?.ToString()))
+                    .ToDictionary(v => v.Key, v => v.Value.ToString());
 
-              var payload = _client.BuildPayload("DotNet", stopwatch, context.Request, context.Response.StatusCode,
-                  System.Text.Encoding.UTF8.GetBytes(requestBody), System.Text.Encoding.UTF8.GetBytes(responseBody), 
-                  responseHeaders, pathParams, context.Request.Path);
+                var responseHeaders = context.Response.Headers.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList());
 
-              await _client.PublishMessageAsync(payload);
-          }
+                var payload = _client.BuildPayload("DotNet", stopwatch, context.Request, context.Response.StatusCode,
+                    System.Text.Encoding.UTF8.GetBytes(requestBody), System.Text.Encoding.UTF8.GetBytes(responseBody),
+                    responseHeaders, pathParams, context.Request.Path);
+
+                await _client.PublishMessageAsync(payload);
+            }
         }
 
         public static async Task<Client> NewClientAsync(Config cfg)
@@ -71,9 +72,9 @@ namespace ApiToolkit.Net
             {
                 url = cfg.RootUrl;
             }
-            
+
             var _httpClient = new HttpClient();
-             _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {cfg.ApiKey}");
+            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {cfg.ApiKey}");
             var response = await _httpClient.GetAsync($"{url}/api/client_metadata");
             if (!response.IsSuccessStatusCode)
             {
@@ -108,8 +109,8 @@ namespace ApiToolkit.Net
     {
         public readonly PublisherClient PubSubClient;
         public readonly TopicName TopicName;
-        public  readonly Config Config;
-        public  readonly ClientMetadata Metadata;
+        public readonly Config Config;
+        public readonly ClientMetadata Metadata;
 
         public Client(PublisherClient pubSubClient, TopicName topicName, Config config, ClientMetadata metadata)
         {
@@ -130,7 +131,8 @@ namespace ApiToolkit.Net
                 return;
             }
 
-            await PubSubClient.PublishAsync(new PubsubMessage {
+            await PubSubClient.PublishAsync(new PubsubMessage
+            {
                 Data = ByteString.CopyFromUtf8(JsonConvert.SerializeObject(payload)),
                 PublishTime = Timestamp.FromDateTime(DateTime.UtcNow),
             });
@@ -141,7 +143,7 @@ namespace ApiToolkit.Net
 
                 if (Config.VerboseDebug)
                 {
-                  Console.WriteLine($"APIToolkit: {JsonConvert.SerializeObject(payload)}");
+                    Console.WriteLine($"APIToolkit: {JsonConvert.SerializeObject(payload)}");
                 }
             }
         }
@@ -159,7 +161,7 @@ namespace ApiToolkit.Net
             }
             string projectId = Metadata is null ? "" : Metadata.ProjectId;
 
-            var reqHeaders = req.Headers.ToDictionary(h => h.Key,h => h.Value.ToList());
+            var reqHeaders = req.Headers.ToDictionary(h => h.Key, h => h.Value.ToList());
             int[] versionParts = req.Protocol.Split('/', '.').Skip(1).Select(int.Parse).ToArray();
             var (majorVersion, minorVersion) = versionParts.Length >= 2 ? (versionParts[0], versionParts[1]) : (1, 1);
 
@@ -169,7 +171,7 @@ namespace ApiToolkit.Net
                 Duration = stopwatch.ElapsedTicks * 100,
                 Host = req.Host.Host,
                 Method = req.Method,
-                PathParams = pathParams, 
+                PathParams = pathParams,
                 ProjectId = projectId,
                 ProtoMajor = majorVersion,
                 ProtoMinor = minorVersion,
@@ -217,7 +219,7 @@ namespace ApiToolkit.Net
     }
 
 
-     public class ClientMetadata
+    public class ClientMetadata
     {
         [JsonProperty("project_id")]
         public string ProjectId { get; set; }
@@ -295,7 +297,7 @@ namespace ApiToolkit.Net
 
         [JsonProperty("proto_major")]
         public int ProtoMajor { get; set; }
-        
+
         //Nanoseconds
         [JsonProperty("duration")]
         public long Duration { get; set; }
