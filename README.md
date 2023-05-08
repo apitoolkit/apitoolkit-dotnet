@@ -52,8 +52,8 @@ To mark a field for redacting via this SDK, you simply need to provide additiona
 
 Examples of valid jsonpaths would be:
 
-$.store.book: Will replace the books field inside the store object with the string [CLIENT_REDACTED]
-$.store.books[*].author: Will redact the author field in all the objects in the books list, inside the store object.
+`$.store.book`: Will replace the books field inside the store object with the string [CLIENT_REDACTED]
+`$.store.books[*].author`: Will redact the author field in all the objects in the books list, inside the store object.
 
 For more examples and introduction to json path, please take a look at: [https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html)
 
