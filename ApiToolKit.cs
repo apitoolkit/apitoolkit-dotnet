@@ -72,8 +72,6 @@ namespace ApiToolkit.Net
         url = cfg.RootUrl;
       }
 
-      // var _httpClient = new HttpClient();
-      // _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {cfg.ApiKey}");
       using HttpResponseMessage response = await new HttpClient
       {
         DefaultRequestHeaders = {
