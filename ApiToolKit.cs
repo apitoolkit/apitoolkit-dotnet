@@ -1,5 +1,4 @@
-﻿using System;
-using Google.Apis.Auth.OAuth2;
+﻿using Google.Apis.Auth.OAuth2;
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf.WellKnownTypes;
 using Google.Protobuf;
@@ -14,292 +13,299 @@ using System.Text.Json;
 
 namespace ApiToolkit.Net
 {
-    public class APIToolkit
+  public class APIToolkit
+  {
+    private readonly RequestDelegate _next;
+    private readonly Client _client;
+
+    public APIToolkit(RequestDelegate next, Client client)
     {
-        private readonly RequestDelegate _next;
-        private readonly Client _client;
+      _next = next;
+      _client = client;
+    }
 
-        public APIToolkit(RequestDelegate next, Client client)
-        {
-            _next = next;
-            _client = client;
+    public async Task InvokeAsync(HttpContext context)
+    {
+      Stopwatch stopwatch = new Stopwatch();
+      stopwatch.Start();
+      context.Request.EnableBuffering(); // so we can read the body stream multiple times
+
+      var responseBodyStream = new MemoryStream();
+      var originalResponseBodyStream = context.Response.Body;
+      context.Response.Body = responseBodyStream;
+
+      try
+      {
+        await _next(context); // execute the next middleware in the pipeline
+      }
+      finally
+      {
+        var requestBody = await new StreamReader(context.Request.Body).ReadToEndAsync();
+        context.Request.Body.Position = 0; // reset the body stream to the beginning
+
+        responseBodyStream.Seek(0, SeekOrigin.Begin);
+        var responseBody = await new StreamReader(responseBodyStream).ReadToEndAsync();
+        responseBodyStream.Seek(0, SeekOrigin.Begin);
+
+        await responseBodyStream.CopyToAsync(originalResponseBodyStream);
+        context.Response.Body = originalResponseBodyStream;
+
+        var pathParams = context.GetRouteData().Values
+            .Where(v => !string.IsNullOrEmpty(v.Value?.ToString()))
+            .ToDictionary(v => v.Key, v => v.Value.ToString());
+
+        var responseHeaders = context.Response.Headers.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList());
+
+        var payload = _client.BuildPayload("DotNet", stopwatch, context.Request, context.Response.StatusCode,
+            System.Text.Encoding.UTF8.GetBytes(requestBody), System.Text.Encoding.UTF8.GetBytes(responseBody),
+            responseHeaders, pathParams, context.Request.Path);
+
+        await _client.PublishMessageAsync(payload);
+      }
+    }
+
+    public static async Task<Client> NewClientAsync(Config cfg)
+    {
+      var url = "https://app.apitoolkit.io";
+      if (!string.IsNullOrEmpty(cfg.RootUrl))
+      {
+        url = cfg.RootUrl;
+      }
+
+      // var _httpClient = new HttpClient();
+      // _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {cfg.ApiKey}");
+      using HttpResponseMessage response = await new HttpClient
+      {
+        DefaultRequestHeaders = {
+          {
+        "Authorization", $"Bearer {cfg.ApiKey}"
+          }
         }
+      }.GetAsync($"{url}/api/client_metadata");
+      if (!response.IsSuccessStatusCode)
+      {
+        throw new Exception($"APIToolkit: Unable to query apitoolkit for client metadata: {response.StatusCode}");
+      }
 
-        public async Task InvokeAsync(HttpContext context)
+      var clientMetadata = JsonConvert.DeserializeObject<ClientMetadata>(await response.Content.ReadAsStringAsync());
+      if (clientMetadata is null)
+      {
+        throw new Exception("APIToolkit: Unable to deserialize client metadata response");
+      }
+
+      var credentials = GoogleCredential
+          .FromJson(clientMetadata.PubsubPushServiceAccount.ToString())
+          .CreateScoped(PublisherServiceApiClient.DefaultScopes);
+
+      var publisher = new PublisherClientBuilder();
+      publisher.Credential = credentials;
+      publisher.TopicName = new TopicName(clientMetadata.PubsubProjectId, clientMetadata.TopicId);
+      var pubsubClient = publisher.Build();
+      var client = new Client(pubsubClient, null, cfg, clientMetadata);
+      if (client.Config.Debug)
+      {
+        Console.WriteLine("APIToolkit: client initialized successfully");
+      }
+      return client;
+    }
+  }
+
+
+  public class Client
+  {
+    public readonly PublisherClient PubSubClient;
+    public readonly TopicName TopicName;
+    public readonly Config Config;
+    public readonly ClientMetadata Metadata;
+
+    public Client(PublisherClient pubSubClient, TopicName topicName, Config config, ClientMetadata metadata)
+    {
+      PubSubClient = pubSubClient;
+      TopicName = topicName;
+      Config = config;
+      Metadata = metadata;
+    }
+
+    public async Task PublishMessageAsync(Payload payload)
+    {
+      if (PubSubClient == null)
+      {
+        if (Config.Debug)
         {
-            Stopwatch stopwatch = new Stopwatch();
-            stopwatch.Start();
-            context.Request.EnableBuffering(); // so we can read the body stream multiple times
-
-            var responseBodyStream = new MemoryStream();
-            var originalResponseBodyStream = context.Response.Body;
-            context.Response.Body = responseBodyStream;
-
-            try
-            {
-                await _next(context); // execute the next middleware in the pipeline
-            }
-            finally
-            {
-                var requestBody = await new StreamReader(context.Request.Body).ReadToEndAsync();
-                context.Request.Body.Position = 0; // reset the body stream to the beginning
-
-                responseBodyStream.Seek(0, SeekOrigin.Begin);
-                var responseBody = await new StreamReader(responseBodyStream).ReadToEndAsync();
-                responseBodyStream.Seek(0, SeekOrigin.Begin);
-
-                await responseBodyStream.CopyToAsync(originalResponseBodyStream);
-                context.Response.Body = originalResponseBodyStream;
-
-                var pathParams = context.GetRouteData().Values
-                    .Where(v => !string.IsNullOrEmpty(v.Value?.ToString()))
-                    .ToDictionary(v => v.Key, v => v.Value.ToString());
-
-                var responseHeaders = context.Response.Headers.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList());
-
-                var payload = _client.BuildPayload("DotNet", stopwatch, context.Request, context.Response.StatusCode,
-                    System.Text.Encoding.UTF8.GetBytes(requestBody), System.Text.Encoding.UTF8.GetBytes(responseBody),
-                    responseHeaders, pathParams, context.Request.Path);
-
-                await _client.PublishMessageAsync(payload);
-            }
+          Console.WriteLine("APIToolkit: topic is not initialized. Check client initialization. Messages are not being sent to apitoolkit");
         }
+        return;
+      }
 
-        public static async Task<Client> NewClientAsync(Config cfg)
+      await PubSubClient.PublishAsync(new PubsubMessage
+      {
+        Data = ByteString.CopyFromUtf8(JsonConvert.SerializeObject(payload)),
+        PublishTime = Timestamp.FromDateTime(DateTime.UtcNow),
+      });
+
+      if (Config.Debug)
+      {
+        Console.WriteLine("APIToolkit: message published to pubsub topic");
+
+        if (Config.VerboseDebug)
         {
-            var url = "https://app.apitoolkit.io";
-            if (!string.IsNullOrEmpty(cfg.RootUrl))
-            {
-                url = cfg.RootUrl;
-            }
-
-            var _httpClient = new HttpClient();
-            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {cfg.ApiKey}");
-            var response = await _httpClient.GetAsync($"{url}/api/client_metadata");
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new Exception($"APIToolkit: Unable to query apitoolkit for client metadata: {response.StatusCode}");
-            }
-
-            var clientMetadata = JsonConvert.DeserializeObject<ClientMetadata>(await response.Content.ReadAsStringAsync());
-            if (clientMetadata is null)
-            {
-                throw new Exception("APIToolkit: Unable to deserialize client metadata response");
-            }
-
-            var credentials = GoogleCredential
-                .FromJson(clientMetadata.PubsubPushServiceAccount.ToString())
-                .CreateScoped(PublisherServiceApiClient.DefaultScopes);
-
-            var publisher = new PublisherClientBuilder();
-            publisher.Credential = credentials;
-            publisher.TopicName = new TopicName(clientMetadata.PubsubProjectId, clientMetadata.TopicId);
-            var pubsubClient = publisher.Build();
-            var client = new Client(pubsubClient, null, cfg, clientMetadata);
-            if (client.Config.Debug)
-            {
-                Console.WriteLine("APIToolkit: client initialized successfully");
-            }
-            return client;
+          Console.WriteLine($"APIToolkit: {JsonConvert.SerializeObject(payload)}");
         }
+      }
+    }
+
+    public Payload BuildPayload(string SDKType, Stopwatch stopwatch, HttpRequest req, int statusCode, byte[] reqBody, byte[] respBody, Dictionary<string, List<string>> respHeader, Dictionary<string, string> pathParams, string urlPath)
+    {
+      if (req == null || Metadata is null)
+      {
+        // Early return with empty payload to prevent any null reference exceptions
+        if (Config.Debug)
+        {
+          Console.WriteLine("APIToolkit: null request or client or url while building payload.");
+        }
+        return new Payload();
+      }
+      string projectId = Metadata is null ? "" : Metadata.ProjectId;
+
+      var reqHeaders = req.Headers.ToDictionary(h => h.Key, h => h.Value.ToList());
+      int[] versionParts = req.Protocol.Split('/', '.').Skip(1).Select(int.Parse).ToArray();
+      var (majorVersion, minorVersion) = versionParts.Length >= 2 ? (versionParts[0], versionParts[1]) : (1, 1);
+
+      stopwatch.Stop();
+      return new Payload
+      {
+        Duration = stopwatch.ElapsedTicks * 100,
+        Host = req.Host.Host,
+        Method = req.Method,
+        PathParams = pathParams,
+        ProjectId = projectId,
+        ProtoMajor = majorVersion,
+        ProtoMinor = minorVersion,
+        QueryParams = req.Query.ToDictionary(kv => kv.Key, kv => kv.Value.ToList()),
+        RawUrl = req.GetEncodedPathAndQuery(),
+        Referer = req.Headers["Referer"].ToString(),
+        RequestBody = RedactJSON(reqBody, Config.RedactRequestBody),
+        RequestHeaders = RedactHeaders(reqHeaders, Config.RedactHeaders),
+        ResponseBody = RedactJSON(respBody, Config.RedactResponseBody),
+        ResponseHeaders = RedactHeaders(respHeader, Config.RedactHeaders),
+        SdkType = SDKType,
+        StatusCode = statusCode,
+        Timestamp = DateTime.UtcNow,
+        UrlPath = urlPath,
+      };
     }
 
 
-    public class Client
+    public static byte[] RedactJSON(byte[] data, List<string> jsonPaths)
     {
-        public readonly PublisherClient PubSubClient;
-        public readonly TopicName TopicName;
-        public readonly Config Config;
-        public readonly ClientMetadata Metadata;
+      if (jsonPaths is null || jsonPaths.Count == 0 || !data.Any()) return data;
 
-        public Client(PublisherClient pubSubClient, TopicName topicName, Config config, ClientMetadata metadata)
-        {
-            PubSubClient = pubSubClient;
-            TopicName = topicName;
-            Config = config;
-            Metadata = metadata;
-        }
-
-        public async Task PublishMessageAsync(Payload payload)
-        {
-            if (PubSubClient == null)
-            {
-                if (Config.Debug)
-                {
-                    Console.WriteLine("APIToolkit: topic is not initialized. Check client initialization. Messages are not being sent to apitoolkit");
-                }
-                return;
-            }
-
-            await PubSubClient.PublishAsync(new PubsubMessage
-            {
-                Data = ByteString.CopyFromUtf8(JsonConvert.SerializeObject(payload)),
-                PublishTime = Timestamp.FromDateTime(DateTime.UtcNow),
-            });
-
-            if (Config.Debug)
-            {
-                Console.WriteLine("APIToolkit: message published to pubsub topic");
-
-                if (Config.VerboseDebug)
-                {
-                    Console.WriteLine($"APIToolkit: {JsonConvert.SerializeObject(payload)}");
-                }
-            }
-        }
-
-        public Payload BuildPayload(string SDKType, Stopwatch stopwatch, HttpRequest req, int statusCode, byte[] reqBody, byte[] respBody, Dictionary<string, List<string>> respHeader, Dictionary<string, string> pathParams, string urlPath)
-        {
-            if (req == null || Metadata is null)
-            {
-                // Early return with empty payload to prevent any null reference exceptions
-                if (Config.Debug)
-                {
-                    Console.WriteLine("APIToolkit: null request or client or url while building payload.");
-                }
-                return new Payload();
-            }
-            string projectId = Metadata is null ? "" : Metadata.ProjectId;
-
-            var reqHeaders = req.Headers.ToDictionary(h => h.Key, h => h.Value.ToList());
-            int[] versionParts = req.Protocol.Split('/', '.').Skip(1).Select(int.Parse).ToArray();
-            var (majorVersion, minorVersion) = versionParts.Length >= 2 ? (versionParts[0], versionParts[1]) : (1, 1);
-
-            stopwatch.Stop();
-            return new Payload
-            {
-                Duration = stopwatch.ElapsedTicks * 100,
-                Host = req.Host.Host,
-                Method = req.Method,
-                PathParams = pathParams,
-                ProjectId = projectId,
-                ProtoMajor = majorVersion,
-                ProtoMinor = minorVersion,
-                QueryParams = req.Query.ToDictionary(kv => kv.Key, kv => kv.Value.ToList()),
-                RawUrl = req.GetEncodedPathAndQuery(),
-                Referer = req.Headers["Referer"].ToString(),
-                RequestBody = RedactJSON(reqBody, Config.RedactRequestBody),
-                RequestHeaders = RedactHeaders(reqHeaders, Config.RedactHeaders),
-                ResponseBody = RedactJSON(respBody, Config.RedactResponseBody),
-                ResponseHeaders = RedactHeaders(respHeader, Config.RedactHeaders),
-                SdkType = SDKType,
-                StatusCode = statusCode,
-                Timestamp = DateTime.UtcNow,
-                UrlPath = urlPath,
-            };
-        }
-
-
-        public static byte[] RedactJSON(byte[] data, List<string> jsonPaths)
-        {
-            if (jsonPaths is null || jsonPaths.Count == 0 || !data.Any()) return data;
-
-            try
-            {
-                JObject jsonObject = JObject.Parse(System.Text.Encoding.UTF8.GetString(data));
-                (jsonPaths ?? new List<string>()).ForEach(jPath => jsonObject.SelectTokens(jPath).ToList().ForEach(token => token.Replace("[CLIENT_REDACTED]")));
-                return System.Text.Encoding.UTF8.GetBytes(jsonObject.ToString());
-            }
-            catch (Exception)
-            {
-                return data;
-            }
-        }
-
-
-        public static Dictionary<string, List<string>> RedactHeaders(Dictionary<string, List<string>> headers, List<string> redactList)
-        {
-            redactList = (redactList ?? new List<string>()).Select(s => s.ToLower()).ToList();
-            return headers
-                .ToDictionary(
-                    kvp => redactList.Contains(kvp.Key.ToLower()) ? kvp.Key : kvp.Key,
-                    kvp => redactList.Contains(kvp.Key.ToLower()) ? new List<string> { "[CLIENT_REDACTED]" } : kvp.Value
-                );
-        }
+      try
+      {
+        JObject jsonObject = JObject.Parse(System.Text.Encoding.UTF8.GetString(data));
+        (jsonPaths ?? new List<string>()).ForEach(jPath => jsonObject.SelectTokens(jPath).ToList().ForEach(token => token.Replace("[CLIENT_REDACTED]")));
+        return System.Text.Encoding.UTF8.GetBytes(jsonObject.ToString());
+      }
+      catch (Exception)
+      {
+        return data;
+      }
     }
 
 
-    public class ClientMetadata
+    public static Dictionary<string, List<string>> RedactHeaders(Dictionary<string, List<string>> headers, List<string> redactList)
     {
-        [JsonProperty("project_id")]
-        public string ProjectId { get; set; }
-
-        [JsonProperty("pubsub_project_id")]
-        public string PubsubProjectId { get; set; }
-
-        [JsonProperty("topic_id")]
-        public string TopicId { get; set; }
-
-        [JsonProperty("pubsub_push_service_account")]
-        public JRaw PubsubPushServiceAccount { get; set; }
+      redactList = (redactList ?? new List<string>()).Select(s => s.ToLower()).ToList();
+      return headers
+          .ToDictionary(
+              kvp => redactList.Contains(kvp.Key.ToLower()) ? kvp.Key : kvp.Key,
+              kvp => redactList.Contains(kvp.Key.ToLower()) ? new List<string> { "[CLIENT_REDACTED]" } : kvp.Value
+          );
     }
+  }
 
-    public class Config
-    {
-        public bool Debug { get; set; }
-        public bool VerboseDebug { get; set; }
-        public string RootUrl { get; set; }
-        public string ApiKey { get; set; }
-        public List<string> RedactHeaders { get; set; }
-        public List<string> RedactRequestBody { get; set; }
-        public List<string> RedactResponseBody { get; set; }
-    }
 
-    public class Payload
-    {
-        [JsonProperty("timestamp")]
-        public DateTime Timestamp { get; set; }
+  public class ClientMetadata
+  {
+    [JsonProperty("project_id")]
+    public string ProjectId { get; set; }
 
-        [JsonProperty("request_headers")]
-        public Dictionary<string, List<string>> RequestHeaders { get; set; }
+    [JsonProperty("pubsub_project_id")]
+    public string PubsubProjectId { get; set; }
 
-        [JsonProperty("query_params")]
-        public Dictionary<string, List<string>> QueryParams { get; set; }
+    [JsonProperty("topic_id")]
+    public string TopicId { get; set; }
 
-        [JsonProperty("path_params")]
-        public Dictionary<string, string> PathParams { get; set; }
+    [JsonProperty("pubsub_push_service_account")]
+    public JRaw PubsubPushServiceAccount { get; set; }
+  }
 
-        [JsonProperty("response_headers")]
-        public Dictionary<string, List<string>> ResponseHeaders { get; set; }
+  public class Config
+  {
+    public bool Debug { get; set; }
+    public bool VerboseDebug { get; set; }
+    public string RootUrl { get; set; }
+    public string ApiKey { get; set; }
+    public List<string> RedactHeaders { get; set; }
+    public List<string> RedactRequestBody { get; set; }
+    public List<string> RedactResponseBody { get; set; }
+  }
 
-        [JsonProperty("method")]
-        public string Method { get; set; }
+  public class Payload
+  {
+    [JsonProperty("timestamp")]
+    public DateTime Timestamp { get; set; }
 
-        [JsonProperty("sdk_type")]
-        public string SdkType { get; set; }
+    [JsonProperty("request_headers")]
+    public Dictionary<string, List<string>> RequestHeaders { get; set; }
 
-        [JsonProperty("host")]
-        public string Host { get; set; }
+    [JsonProperty("query_params")]
+    public Dictionary<string, List<string>> QueryParams { get; set; }
 
-        [JsonProperty("raw_url")]
-        public string RawUrl { get; set; }
+    [JsonProperty("path_params")]
+    public Dictionary<string, string> PathParams { get; set; }
 
-        [JsonProperty("referer")]
-        public string Referer { get; set; }
+    [JsonProperty("response_headers")]
+    public Dictionary<string, List<string>> ResponseHeaders { get; set; }
 
-        [JsonProperty("project_id")]
-        public string ProjectId { get; set; }
+    [JsonProperty("method")]
+    public string Method { get; set; }
 
-        [JsonProperty("url_path")]
-        public string UrlPath { get; set; }
+    [JsonProperty("sdk_type")]
+    public string SdkType { get; set; }
 
-        [JsonProperty("response_body")]
-        public byte[] ResponseBody { get; set; }
+    [JsonProperty("host")]
+    public string Host { get; set; }
 
-        [JsonProperty("request_body")]
-        public byte[] RequestBody { get; set; }
+    [JsonProperty("raw_url")]
+    public string RawUrl { get; set; }
 
-        [JsonProperty("proto_minor")]
-        public int ProtoMinor { get; set; }
+    [JsonProperty("referer")]
+    public string Referer { get; set; }
 
-        [JsonProperty("status_code")]
-        public int StatusCode { get; set; }
+    [JsonProperty("project_id")]
+    public string ProjectId { get; set; }
 
-        [JsonProperty("proto_major")]
-        public int ProtoMajor { get; set; }
+    [JsonProperty("url_path")]
+    public string UrlPath { get; set; }
 
-        //Nanoseconds
-        [JsonProperty("duration")]
-        public long Duration { get; set; }
-    }
+    [JsonProperty("response_body")]
+    public byte[] ResponseBody { get; set; }
+
+    [JsonProperty("request_body")]
+    public byte[] RequestBody { get; set; }
+
+    [JsonProperty("proto_minor")]
+    public int ProtoMinor { get; set; }
+
+    [JsonProperty("status_code")]
+    public int StatusCode { get; set; }
+
+    [JsonProperty("proto_major")]
+    public int ProtoMajor { get; set; }
+
+    //Nanoseconds
+    [JsonProperty("duration")]
+    public long Duration { get; set; }
+  }
 }
