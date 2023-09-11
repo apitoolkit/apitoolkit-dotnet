@@ -35,7 +35,12 @@ app.Use(async (context, next) =>
     var apiToolkit = new APIToolkit(next, client);
     await apiToolkit.InvokeAsync(context);
 });
+
+# app.UseEndpoint(..) 
+# other middlewares and logic
+# ...
 ```
+Please make sure the apitoolkit middleware is added before UseEndpoint and other middlewares are initialized
 
 The field `{Your_APIKey}` should be replaced with the api key which you generated from the apitoolkit dashboard.
 In practice, you would set this field using 
