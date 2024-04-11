@@ -110,8 +110,8 @@ Given the following JSON object:
 
 Examples of valid JSONPaths would be:
 
-- `$.store.books`: APItoolkit will replace the `books` field inside the store object with the string `[CLIENT_REDACTED]`.
-- `$.store.books[*].author`: APItoolkit will replace the `author` field in all the objects in the `books` list inside the `store` object with the string `[CLIENT_REDACTED]`.
+- `$.store.books` (In this case, APItoolkit will replace the `books` field inside the store object with the string `[CLIENT_REDACTED]`.
+- `$.store.books[*].author` (In this case, APItoolkit will replace the `author` field in all the objects in the `books` list inside the `store` object with the string `[CLIENT_REDACTED]`.
 
 For more examples and an introduction to JSONPath, please take a look at [this guide](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html) or [this cheatsheet](https://lzone.de/#/LZone%20Cheat%20Sheets/Languages/JSONPath).
 
@@ -146,7 +146,7 @@ app.Use(async (context, next) =>
 To contribute to the development of this SDK or request help from the community and our team, kindly:
 - Read our [Contributors Guide](https://github.com/apitoolkit/.github/blob/main/CONTRIBUTING.md).
 - Join our community [Discord Server](https://discord.gg/dEB6EjQnKB).
-- [Create a new issue](https://github.com/apitoolkit/apitoolkit-dotnet/issues/new/choose) in this repository.
+- Create a [new issue](https://github.com/apitoolkit/apitoolkit-dotnet/issues/new/choose) in this repository.
 
 ## License
 
