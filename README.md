@@ -16,8 +16,8 @@ APItoolkit is an end-to-end API and web services management toolkit for engineer
 ## Table of Contents
 
 - [Installation](#installation)
-- [Redacting Fields]()
-- [Contributing and Help]()
+- [Redacting Fields](#redacting-fields)
+- [Contributing and Help](#contributing-and-help)
 - [License](#license)
 
 ---
@@ -135,7 +135,7 @@ app.Use(async (context, next) =>
 
 ## Contributing and Help
 
-To contribute to the development of this SDK or support requests, kindly read our [CONTRIBUTING GUIDE](https://github.com/apitoolkit/.github/blob/main/CONTRIBUTING.md), join our community [Discord Server](https://discord.gg/dEB6EjQnKB), or [create a new issue](https://github.com/apitoolkit/apitoolkit-dotnet/issues/new/choose) in this repository.
+To contribute to the development of this SDK or support requests, kindly read our [Contributors Guide](https://github.com/apitoolkit/.github/blob/main/CONTRIBUTING.md), join our community [Discord Server](https://discord.gg/dEB6EjQnKB), or [create a new issue](https://github.com/apitoolkit/apitoolkit-dotnet/issues/new/choose) in this repository.
 
 ## License
 
