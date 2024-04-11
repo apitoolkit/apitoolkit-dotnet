@@ -17,6 +17,8 @@ APItoolkit is an end-to-end API and web services management toolkit for engineer
 
 - [Installation](#installation)
 - [Redacting Fields](#redacting-fields)
+  - [JSONPath Example]()
+  - [Configuration Example]()
 - [Contributing and Help](#contributing-and-help)
 - [License](#license)
 
@@ -24,13 +26,13 @@ APItoolkit is an end-to-end API and web services management toolkit for engineer
 
 ## Installation
 
-Kindly run the following command to install the package into your .NET application:
+Kindly run the following command to install the package:
 
 ```sh
 dotnet add package ApiToolkit.Net
 ```
 
-Now you can initialize APIToolkit in your application's entry point (eg `Program.cs`) like so:
+Now you can initialize APItoolkit in your application's entry point (e.g `Program.cs`) like so:
 
 ```csharp
 var config = new Config
@@ -65,12 +67,14 @@ app.Use(async (context, next) =>
 
 If you have fields that are sensitive and should not be sent to APItoolkit servers, you can mark those fields to be redacted in two ways:
 - This client SDK (the fields will never leave your servers in the first place).
-- The APItoolkit dashboard (the fields will be transported from your servers to APItoolkit and then redacted on the edge before further processing).
+- The APItoolkit dashboard (the fields will be transported from your servers first and then redacted on the edge before further processing).
 
 To mark a field for redacting via this SDK, you need to provide additional arguments to the `APIToolkitService` with the paths to the fields that should be redacted. There are three (3) potential arguments that you can provide to configure what gets redacted.
-1. `RedactHeaders`:  A list of HTTP header keys that should be redacted before data is sent out (e.g., COOKIE (redacted by default), CONTENT-TYPE, etc.).
-2. `RedactRequestBody`: A list of JSONPaths that should be redacted from the request body, if the request body is a valid JSON.
-3. `RedactResponseBody`: A list of JSONPaths that should be redacted from the response body, if the response body is a valid JSON.
+1. `RedactHeaders`:  A list of HTTP header keys that should be redacted before data is sent out (e.g., `COOKIE` (redacted by default), `CONTENT-TYPE`, etc.).
+2. `RedactRequestBody`: A list of JSONPaths that should be redacted from the request body (if the request body is a valid JSON).
+3. `RedactResponseBody`: A list of JSONPaths that should be redacted from the response body (if the response body is a valid JSON).
+
+### JSONPath Example
 
 Given the following JSON object:
 
@@ -101,13 +105,14 @@ Given the following JSON object:
 }
 ```
 
-examples of valid JSONPaths would be:
+Valid JSONPaths would be:
 
-`$.store.books`: Replace the `books` field inside the store object with the string `[CLIENT_REDACTED]`.
-`$.store.books[*].author`: Replace the `author` field in all the objects in the `books` list, inside the store object with the string `[CLIENT_REDACTED]`.
+- `$.store.books`: Replace the `books` field inside the store object with the string `[CLIENT_REDACTED]`.
+- `$.store.books[*].author`: Replace the `author` field in all the objects in the `books` list, inside the store object with the string `[CLIENT_REDACTED]`.
 
 For more examples and an introduction to JSON path, please take a look at [this guide](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html) or [this cheatsheet](https://lzone.de/#/LZone%20Cheat%20Sheets/Languages/JSONPath).
 
+### Configuration Example
 
 Here's an example of what the configuration in your entry point (`Program.cs`) would look like with the redacted fields configured:
 
