@@ -73,9 +73,9 @@ If you have fields that are sensitive and should not be sent to APItoolkit serve
 - The APItoolkit dashboard (the fields will be transported from your servers first and then redacted on the edge before further processing).
 
 To mark a field for redacting via this SDK, you need to provide additional arguments to the `APIToolkitService` with the paths to the fields that should be redacted. There are three (3) potential arguments that you can provide to configure what gets redacted.
-1. `RedactHeaders`:  A list of HTTP header keys that should be redacted before data is sent out (e.g., `COOKIE` (redacted by default), `CONTENT-TYPE`, etc.).
-2. `RedactRequestBody`: A list of JSONPaths that should be redacted from the request body (if the request body is a valid JSON).
-3. `RedactResponseBody`: A list of JSONPaths that should be redacted from the response body (if the response body is a valid JSON).
+1. `RedactHeaders`:  A list of HTTP header keys (e.g., `COOKIE` (redacted by default), `CONTENT-TYPE`, etc.).
+2. `RedactRequestBody`: A list of JSONPaths from the request body (if the request body is a valid JSON).
+3. `RedactResponseBody`: A list of JSONPaths from the response body (if the response body is a valid JSON).
 
 ### JSONPath Example
 
