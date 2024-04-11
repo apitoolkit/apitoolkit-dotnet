@@ -17,8 +17,8 @@ APItoolkit is an end-to-end API and web services management toolkit for engineer
 
 - [Installation](#installation)
 - [Redacting Fields](#redacting-fields)
-  - [JSONPath Example]()
-  - [Configuration Example]()
+  - [JSONPath Example](#jsonpath-example)
+  - [Configuration Example](#configuration-example)
 - [Contributing and Help](#contributing-and-help)
 - [License](#license)
 
