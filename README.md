@@ -143,7 +143,10 @@ app.Use(async (context, next) =>
 
 ## Contributing and Help
 
-To contribute to the development of this SDK or support requests, kindly read our [Contributors Guide](https://github.com/apitoolkit/.github/blob/main/CONTRIBUTING.md), join our community [Discord Server](https://discord.gg/dEB6EjQnKB), or [create a new issue](https://github.com/apitoolkit/apitoolkit-dotnet/issues/new/choose) in this repository.
+To contribute to the development of this SDK or request help from the community and our team, kindly:
+- Read our [Contributors Guide](https://github.com/apitoolkit/.github/blob/main/CONTRIBUTING.md).
+- Join our community [Discord Server](https://discord.gg/dEB6EjQnKB).
+- [Create a new issue](https://github.com/apitoolkit/apitoolkit-dotnet/issues/new/choose) in this repository.
 
 ## License
 
