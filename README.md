@@ -16,6 +16,7 @@ APItoolkit is an end-to-end API and web services management toolkit for engineer
 ## Table of Contents
 
 - [Installation](#installation)
+- [Configuration](#configuration)
 - [Redacting Fields](#redacting-fields)
   - [JSONPath Example](#jsonpath-example)
   - [Configuration Example](#configuration-example)
@@ -31,6 +32,8 @@ Kindly run the following command to install the package:
 ```sh
 dotnet add package ApiToolkit.Net
 ```
+
+## Configuration
 
 Now you can initialize APItoolkit in your application's entry point (e.g `Program.cs`) like so:
 
@@ -105,12 +108,12 @@ Given the following JSON object:
 }
 ```
 
-Valid JSONPaths would be:
+Examples of valid JSONPaths would be:
 
-- `$.store.books`: Replace the `books` field inside the store object with the string `[CLIENT_REDACTED]`.
-- `$.store.books[*].author`: Replace the `author` field in all the objects in the `books` list, inside the store object with the string `[CLIENT_REDACTED]`.
+- `$.store.books`: APItoolkit will replace the `books` field inside the store object with the string `[CLIENT_REDACTED]`.
+- `$.store.books[*].author`: APItoolkit will replace the `author` field in all the objects in the `books` list inside the `store` object with the string `[CLIENT_REDACTED]`.
 
-For more examples and an introduction to JSON path, please take a look at [this guide](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html) or [this cheatsheet](https://lzone.de/#/LZone%20Cheat%20Sheets/Languages/JSONPath).
+For more examples and an introduction to JSONPath, please take a look at [this guide](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html) or [this cheatsheet](https://lzone.de/#/LZone%20Cheat%20Sheets/Languages/JSONPath).
 
 ### Configuration Example
 
