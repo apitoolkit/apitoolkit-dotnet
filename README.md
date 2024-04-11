@@ -1,25 +1,36 @@
-<p>
-<img src="https://apitoolkit.io/assets/img/logo-full.svg" alt="APIToolkit" width="250px" />
-</p>
+<div align="center">
 
-[![Build Status](https://github.com/apitoolkit/apitoolkit-dotnet/workflows/.NET/badge.svg)](https://github.com/apitoolkit/apitoolkit-dotnet1/actions?query=workflow%3ACI) [![NuGet](https://img.shields.io/nuget/v/ApiToolkit.Net.svg)](https://nuget.org/packages/ApiToolkit.Net) [![Nuget](https://img.shields.io/nuget/dt/ApiToolkit.Net.svg)](https://nuget.org/packages/ApiToolkit.Net)
+![APItoolkit's Logo](https://github.com/apitoolkit/.github/blob/main/images/logo-white.svg?raw=true#gh-dark-mode-only)
+![APItoolkit's Logo](https://github.com/apitoolkit/.github/blob/main/images/logo-black.svg?raw=true#gh-light-mode-only)
 
+## .NET SDK
 
-## APIToolkit .NET SDK
+[![NuGet](https://img.shields.io/badge/APItoolkit-sdk-0068ff)](https://github.com/topics/apitoolkit-sdk) [![Build Status](https://github.com/apitoolkit/apitoolkit-dotnet/workflows/.NET/badge.svg)](https://github.com/apitoolkit/apitoolkit-dotnet1/actions?query=workflow%3ACI) [![NuGet](https://img.shields.io/nuget/v/ApiToolkit.Net.svg)](https://nuget.org/packages/ApiToolkit.Net) [![Nuget](https://img.shields.io/nuget/dt/ApiToolkit.Net.svg)](https://nuget.org/packages/ApiToolkit.Net)
 
+APItoolkit is an end-to-end API and web services management toolkit for engineers and customer support teams. To integrate `.Net` web services with APItoolkit, you need to use this SDK to monitor incoming traffic, aggregate the requests, and then deliver them to the APItoolkit's servers.
 
-APIToolkit is a lightweight middleware that helps Engineering teams build & maintain REST based APIs that their customers love.
+</div>
 
+---
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Redacting Fields]()
+- [Contributing and Help]()
+- [License](#license)
+
+---
 
 ## Installation
 
-Run the following command to install the package into your .NET application:
+Kindly run the following command to install the package into your .NET application:
 
 ```sh
 dotnet add package ApiToolkit.Net
 ```
 
-Now you can initialize APIToolkit in your application's entry point (eg Program.cs)
+Now you can initialize APIToolkit in your application's entry point (eg `Program.cs`) like so:
 
 ```csharp
 var config = new Config
@@ -40,30 +51,66 @@ app.Use(async (context, next) =>
 # other middlewares and logic
 # ...
 ```
-Please make sure the apitoolkit middleware is added before UseEndpoint and other middlewares are initialized
 
-The field `{Your_APIKey}` should be replaced with the api key which you generated from the apitoolkit dashboard.
-In practice, you would set this field using 
+> [!NOTE]
+> 
+> Please make sure the APItoolkit middleware is added before `UseEndpoint` and other middleware are initialized.
 
-
-## Redacting/Masking fields
-
-If you have fields which are too sensitive and should not be sent to APIToolkit servers, you can mark those fields to be redacted either via the APIToolkit dashboard, or via this client SDK. Redacting fields via the SDK means that those fields never leave your servers in the first place, compared to redacting it via the APIToolkit dashboard, which would redact the fields on the edge before further processing. But then the data still needs to be transported from your servers before they are redacted.
-
-To mark a field for redacting via this SDK, you simply need to provide additional arguments to the APIToolkitService with the paths to the fields that should be redacted. There are 3 potential arguments which you can provide to configure what gets redacted.
-- `RedactHeaders`:  A list of HTTP header keys which should be redacted before data is sent out. eg COOKIE(redacted by default), CONTENT-TYPE, etc
-- `RedactRequestBody`: A list of JSONpaths which will be redacted from the request body, if the request body is a valid json.
-- `RedactResponseBody`: A list of JSONpaths which will be redacted from the response body, if the response body is a valid json.
-
-Examples of valid jsonpaths would be:
-
-`$.store.book`: Will replace the books field inside the store object with the string [CLIENT_REDACTED]
-`$.store.books[*].author`: Will redact the author field in all the objects in the books list, inside the store object.
-
-For more examples and introduction to json path, please take a look at: [https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html)
+> [!IMPORTANT]
+> 
+> The `{Your_APIKey}` field should be replaced with the API key generated from the APItoolkit dashboard. 
 
 
-Here's an example of what your configuration in your entry point (Program.cs) would look like with the redacted fields configured:
+## Redacting Fields
+
+If you have fields that are sensitive and should not be sent to APItoolkit servers, you can mark those fields to be redacted in two ways:
+- This client SDK (the fields will never leave your servers in the first place).
+- The APItoolkit dashboard (the fields will be transported from your servers to APItoolkit and then redacted on the edge before further processing).
+
+To mark a field for redacting via this SDK, you need to provide additional arguments to the `APIToolkitService` with the paths to the fields that should be redacted. There are three (3) potential arguments that you can provide to configure what gets redacted.
+1. `RedactHeaders`:  A list of HTTP header keys that should be redacted before data is sent out (e.g., COOKIE (redacted by default), CONTENT-TYPE, etc.).
+2. `RedactRequestBody`: A list of JSONPaths that should be redacted from the request body, if the request body is a valid JSON.
+3. `RedactResponseBody`: A list of JSONPaths that should be redacted from the response body, if the response body is a valid JSON.
+
+Given the following JSON object:
+
+```JSON
+{
+    "store": {
+        "books": [
+            {
+                "category": "reference",
+                "author": "Nigel Rees",
+                "title": "Sayings of the Century",
+                "price": 8.95
+            },
+            {
+                "category": "fiction",
+                "author": "Evelyn Waugh",
+                "title": "Sword of Honour",
+                "price": 12.99
+            },
+            ...
+        ],
+        "bicycle": {
+            "color": "red",
+            "price": 19.95
+        }
+    },
+    ...
+}
+```
+
+examples of valid JSONPaths would be:
+
+`$.store.books`: Replace the `books` field inside the store object with the string `[CLIENT_REDACTED]`.
+`$.store.books[*].author`: Replace the `author` field in all the objects in the `books` list, inside the store object with the string `[CLIENT_REDACTED]`.
+
+For more examples and an introduction to JSON path, please take a look at [this guide](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html) or [this cheatsheet](https://lzone.de/#/LZone%20Cheat%20Sheets/Languages/JSONPath).
+
+
+Here's an example of what the configuration in your entry point (`Program.cs`) would look like with the redacted fields configured:
+
 ```csharp
 var config = new Config
 {
@@ -80,14 +127,24 @@ app.Use(async (context, next) =>
 {
     var apiToolkit = new APIToolkit(next, client);
     await apiToolkit.InvokeAsync(context);
-
 ```
 
+> [!NOTE]
+> 
+> While the `RedactHeaders` config field accepts a list of case-insensitive headers, `RedactRequestBody` and `RedactResponseBody` expect a list of JSONPath strings as arguments. Also, the list of items to be redacted will be applied to all endpoint requests and responses on your server.
 
-It is important to note that while the `RedactHeaders` config field accepts a list of headers(case insensitive), 
-the `RedactRequestBody` and `RedactResponseBody` expect a list of JSONPath strings as arguments.
+## Contributing and Help
 
-The choice of JSONPath was selected to allow you have great flexibility in describing which fields within your responses are sensitive.
-Also note that these list of items to be redacted will be aplied to all endpoint requests and responses on your server.
-To learn more about jsonpath to help form your queries, please take a look at this cheatsheet:
-[https://lzone.de/cheat-sheet/JSONPath](https://lzone.de/cheat-sheet/JSONPath)
+To contribute to the development of this SDK or support requests, kindly read our [CONTRIBUTING GUIDE](https://github.com/apitoolkit/.github/blob/main/CONTRIBUTING.md), join our community [Discord Server](https://discord.gg/dEB6EjQnKB), or [create a new issue](https://github.com/apitoolkit/apitoolkit-dotnet/issues/new/choose) in this repository.
+
+## License
+
+This repository is published under the [MIT](LICENSE) license.
+
+---
+
+<div align="center">
+    
+<a href="https://apitoolkit.iohttps://apitoolkit.io?utm_source=apitoolkit_github_dotnetsdk" target="_blank" rel="noopener noreferrer"><img src="https://github.com/apitoolkit/.github/blob/main/images/icon.png?raw=true" width="40" /></a>
+
+</div>
