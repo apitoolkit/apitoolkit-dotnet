@@ -17,7 +17,7 @@ APItoolkit is an end-to-end API and web services management toolkit for engineer
 
 - [Installation](#installation)
 - [Configuration](#configuration)
-- [Redacting Fields](#redacting-fields)
+- [Redacting Sensitive Data](#redacting-sensitive-data)
   - [JSONPath Example](#jsonpath-example)
   - [Configuration Example](#configuration-example)
 - [Contributing and Help](#contributing-and-help)
@@ -66,13 +66,13 @@ app.Use(async (context, next) =>
 > The `{Your_APIKey}` field should be replaced with the API key generated from the APItoolkit dashboard. 
 
 
-## Redacting Fields
+## Redacting Sensitive Data
 
 If you have fields that are sensitive and should not be sent to APItoolkit servers, you can mark those fields to be redacted in two ways:
 - This client SDK (the fields will never leave your servers in the first place).
 - The APItoolkit dashboard (the fields will be transported from your servers first and then redacted on the edge before further processing).
 
-To mark a field for redacting via this SDK, you need to provide additional arguments to the `APIToolkitService` with the paths to the fields that should be redacted. There are three (3) potential arguments that you can provide to configure what gets redacted.
+To mark a field for redacting via this SDK, you need to provide additional arguments to the `config` variable with paths to the fields that should be redacted. There are three (3) potential arguments that you can provide to configure what gets redacted.
 1. `RedactHeaders`:  A list of HTTP header keys (e.g., `COOKIE` (redacted by default), `CONTENT-TYPE`, etc.).
 2. `RedactRequestBody`: A list of JSONPaths from the request body (if the request body is a valid JSON).
 3. `RedactResponseBody`: A list of JSONPaths from the response body (if the response body is a valid JSON).
@@ -110,10 +110,10 @@ Given the following JSON object:
 
 Examples of valid JSONPaths would be:
 
-- `$.store.books` (In this case, APItoolkit will replace the `books` field inside the store object with the string `[CLIENT_REDACTED]`.
-- `$.store.books[*].author` (In this case, APItoolkit will replace the `author` field in all the objects in the `books` list inside the `store` object with the string `[CLIENT_REDACTED]`.
+- `$.store.books` (In this case, APItoolkit will replace the `books` field inside the store object with the string `[CLIENT_REDACTED]`).
+- `$.store.books[*].author` (In this case, APItoolkit will replace the `author` field in all the objects in the `books` list inside the `store` object with the string `[CLIENT_REDACTED]`).
 
-For more examples and an introduction to JSONPath, please take a look at [this guide](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html) or [this cheatsheet](https://lzone.de/#/LZone%20Cheat%20Sheets/Languages/JSONPath).
+For more examples and a detailed introduction to JSONPath, please take a look at [this guide](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html) or [this cheatsheet](https://lzone.de/#/LZone%20Cheat%20Sheets/Languages/JSONPath).
 
 ### Configuration Example
 
