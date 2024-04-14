@@ -53,12 +53,24 @@ namespace ApiToolkit.Net
         var pathParams = context.GetRouteData().Values
             .Where(v => !string.IsNullOrEmpty(v.Value?.ToString()))
             .ToDictionary(v => v.Key, v => v.Value.ToString());
+        var urlPath = "";
+        var endpoint = context.GetEndpoint();
+        if (endpoint != null)
+        {
+          var routePattern = (endpoint as Microsoft.AspNetCore.Routing.RouteEndpoint)?.RoutePattern?.RawText;
+
+          if (routePattern != null)
+          {
+            urlPath = routePattern;
+          }
+        }
+
 
         var responseHeaders = context.Response.Headers.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToList());
 
         var payload = _client.BuildPayload("DotNet", stopwatch, context.Request, context.Response.StatusCode,
             System.Text.Encoding.UTF8.GetBytes(requestBody), System.Text.Encoding.UTF8.GetBytes(responseBody),
-            responseHeaders, pathParams, context.Request.Path);
+            responseHeaders, pathParams, urlPath);
 
         await _client.PublishMessageAsync(payload);
       }
