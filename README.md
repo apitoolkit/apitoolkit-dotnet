@@ -20,6 +20,8 @@ APItoolkit is an end-to-end API and web services management toolkit for engineer
 - [Redacting Sensitive Data](#redacting-sensitive-data)
   - [JSONPath Example](#jsonpath-example)
   - [Configuration Example](#configuration-example)
+- [Monitoring outgiong requests](#outgiong-requests-monitoring)
+- [Error Reporting](#error-reporting)
 - [Contributing and Help](#contributing-and-help)
 - [License](#license)
 
@@ -140,6 +142,52 @@ app.Use(async (context, next) =>
 > [!NOTE]
 > 
 > While the `RedactHeaders` config field accepts a list of case-insensitive headers, `RedactRequestBody` and `RedactResponseBody` expect a list of JSONPath strings as arguments. Also, the list of items to be redacted will be applied to all endpoint requests and responses on your server.
+
+
+## Monitoring Outgoing Requests
+
+
+
+## Error Reporting
+
+APIToolkit detects a lot of API issues automatically, but it's also valuable to report and track errors.
+
+This helps you associate more details about the backend with a given failing request. If you've used sentry, or rollback, or bugsnag, then you're likely aware of this functionality.
+
+To report errors, simply call `ReportError` method of the APIToolkit client
+
+Example
+
+```csharp
+
+var client = await APIToolkit.NewClientAsync(config);
+
+app.Use(async (context, next) =>
+{
+    var apiToolkit = new APIToolkit(next, client);
+    await apiToolkit.InvokeAsync(context);
+});
+
+app.MapGet("/error-tracking", async context =>
+{
+    try
+    {
+        // Attempt to open a non-existing file
+        using (var fileStream = System.IO.File.OpenRead("nonexistingfile.txt"))
+        {
+            // File opened successfully, do something if needed
+        }
+        await context.Response.WriteAsync($"Hello, {context.Request.RouteValues["name"]}!");
+    }
+    catch (Exception error)
+    {
+        // Report error to apitoolkit (associated with the request)
+        client.ReportError(context, error);
+        await context.Response.WriteAsync("Error reported!");
+    }
+});
+
+```
 
 ## Contributing and Help
 
