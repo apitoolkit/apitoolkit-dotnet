@@ -137,6 +137,7 @@ app.Use(async (context, next) =>
 {
     var apiToolkit = new APIToolkit(next, client);
     await apiToolkit.InvokeAsync(context);
+})
 ```
 
 > [!NOTE]
@@ -146,7 +147,82 @@ app.Use(async (context, next) =>
 
 ## Monitoring Outgoing Requests
 
+Apitoolkit allows your to monitor request you make from your application just like request that come into your app. Outgoing request are associated with the request that triggers them when the request context is passed otherwise they appear as a standalone log in the APIToolkit log explorer.
+To monitor outgoing request
 
+Example
+
+```csharp
+using ApiToolkit.Net;
+
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+var config = new Config
+{
+    ApiKey = "<YOUR_API_KEY>"
+};
+var client = await APIToolkit.NewClientAsync(config);
+
+app.Use(async (context, next) =>
+{
+    var apiToolkit = new APIToolkit(next, client);
+    await apiToolkit.InvokeAsync(context);
+});
+
+app.MapGet("/monitor-requets", async (context) =>
+{
+    using var httpClient = new HttpClient(client.APIToolkitObservingHandler(context));
+    var response = await httpClient.GetAsync("https://jsonplaceholder.typicode.com/posts/1");
+    var body = await response.Content.ReadAsStringAsync();
+    await context.Response.WriteAsync(body);
+});
+```
+
+
+The observing handler also take and optional configuration options which include the following fields
+
+`PathWildCard`: For urls with path params setting PathWildCard will be used as the url_path 
+`RedactHeaders`: A string list of headers to redact
+`RedactResponseBody`: A string list of json paths to redact from response body
+`RedactRequestBody`: A string list of json paths to redact from request body 
+
+### Full configuration example
+```csharp
+using ApiToolkit.Net;
+
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+var config = new Config
+{
+    ApiKey = "<YOUR_API_KEY>"
+};
+var client = await APIToolkit.NewClientAsync(config);
+
+app.Use(async (context, next) =>
+{
+    var apiToolkit = new APIToolkit(next, client);
+    await apiToolkit.InvokeAsync(context);
+});
+
+
+app.MapGet("/monitor-requets", async (context) =>
+{
+    var observingHandlerOptions = new ATOptions
+    {
+        PathWildCard = "/posts/{id}", // url_path will be /posts/{id} instead of /posts/1
+        RedactHeaders = ["User-Agent"],
+        RedactRequestBody = ["$.user.password"],
+        RedactResponseBody = ["$.user.data.email"]
+    };
+
+    using var httpClient = new HttpClient(client.APIToolkitObservingHandler(context, observingHandlerOptions));
+    var response = await httpClient.GetAsync("https://jsonplaceholder.typicode.com/posts/1");
+    var body = await response.Content.ReadAsStringAsync();
+    await context.Response.WriteAsync(body);
+});
+```
 
 ## Error Reporting
 
@@ -159,6 +235,16 @@ To report errors, simply call `ReportError` method of the APIToolkit client
 Example
 
 ```csharp
+
+using ApiToolkit.Net;
+
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+var config = new Config
+{
+    ApiKey = "<YOUR_API_KEY>"
+};
 
 var client = await APIToolkit.NewClientAsync(config);
 
