@@ -3,14 +3,15 @@ using Google.Cloud.PubSub.V1;
 using Google.Protobuf.WellKnownTypes;
 using Google.Protobuf;
 using Microsoft.AspNetCore.Http.Extensions;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
 using NUnit.Framework;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 using System.Diagnostics;
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+
+
 
 namespace ApiToolkit.Net
 {
@@ -167,6 +168,11 @@ namespace ApiToolkit.Net
           Console.WriteLine($"APIToolkit: {JsonConvert.SerializeObject(payload)}");
         }
       }
+    }
+
+    public ObservingHandler APIToolkitObservingHandler(HttpContext context)
+    {
+      return new ObservingHandler(context, PublishMessageAsync, BuildPayload);
     }
 
 
@@ -385,6 +391,44 @@ namespace ApiToolkit.Net
     public string RootErrorMessage { get; set; }
     [JsonProperty("stack_trace")]
     public string StackTrace { get; set; }
+  }
+
+  public class ObservingHandler : DelegatingHandler
+  {
+    private readonly HttpContext _context;
+    private readonly Func<Payload, Task> _publishMessageAsync;
+    private readonly Func<string, Stopwatch, HttpRequest, int, byte[], byte[], Dictionary<string, List<string>>, Dictionary<string, string>, string, List<ATError>, Payload> _buildPayload;
+    public ObservingHandler(HttpContext httpContext, Func<Payload, Task> publishMessage, Func<string, Stopwatch, HttpRequest, int, byte[], byte[], Dictionary<string, List<string>>, Dictionary<string, string>, string, List<ATError>, Payload> buildPayload)
+    {
+      _context = httpContext ?? throw new ArgumentNullException(nameof(httpContext));
+      _publishMessageAsync = publishMessage;
+      _buildPayload = buildPayload;
+    }
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+      var requestInfo = new
+      {
+        StartTime = DateTimeOffset.UtcNow,
+        Method = request.Method,
+        RequestUri = request.RequestUri,
+        Headers = request.Headers,
+        Body = await request.Content.ReadAsStringAsync(),
+      };
+
+      var response = await base.SendAsync(request, cancellationToken);
+
+      var responseInfo = new
+      {
+        Duration = DateTimeOffset.UtcNow - requestInfo.StartTime,
+        StatusCode = response.StatusCode,
+        Headers = response.Headers,
+        Body = await response.Content.ReadAsStringAsync(),
+      };
+
+
+      return response;
+    }
   }
 
 }
