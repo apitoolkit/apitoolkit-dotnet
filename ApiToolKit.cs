@@ -172,7 +172,7 @@ namespace ApiToolkit.Net
       }
     }
 
-    public ObservingHandler APIToolkitObservingHandler(HttpContext context, ATOptions? options = null)
+    public ObservingHandler APIToolkitObservingHandler(HttpContext? context = null, ATOptions? options = null)
     {
       return new ObservingHandler(PublishMessageAsync, Metadata.ProjectId, context, options);
     }
