@@ -20,7 +20,7 @@ APItoolkit is an end-to-end API and web services management toolkit for engineer
 - [Redacting Sensitive Data](#redacting-sensitive-data)
   - [JSONPath Example](#jsonpath-example)
   - [Configuration Example](#configuration-example)
-- [Monitoring outgiong requests](#outgiong-requests-monitoring)
+- [Monitoring outgiong requests](#monitoring-outgoing-requests)
 - [Error Reporting](#error-reporting)
 - [Contributing and Help](#contributing-and-help)
 - [License](#license)
