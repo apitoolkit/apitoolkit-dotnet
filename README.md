@@ -59,13 +59,13 @@ app.Use(async (context, next) =>
 > [!NOTE]
 > 
 > - Please make sure the APItoolkit middleware is added before `UseEndpoint` and other middleware are initialized. 
-> - The `{ENTER_YOUR_API_KEY_HERE}` demo string should be replaced with the [API key](https://apitoolkit.io/docs/dashboard/settings-pages/api-keys) generated from the APItoolkit dashboard.
+> - The `{ENTER_YOUR_API_KEY_HERE}` demo string should be replaced with the [API key](https://apitoolkit.io/docs/dashboard/settings-pages/api-keys?utm_source=github-sdk) generated from the APItoolkit dashboard.
 
 <br />
 
 > [!IMPORTANT]
 > 
-> To learn more about redacting fields, error reporting, outgoing requests, etc. please read our [.Net Core SDK](https://apitoolkit.io/docs/sdks/dotnet/dotnetcore/) documentation.
+> To learn more configuration options (redacting fields, error reporting, outgoing requests, etc.) please read our comprehensive [.Net Core SDK](https://apitoolkit.io/docs/sdks/dotnet/dotnetcore?utm_source=github-sdk) documentation.
 
 ## Contributing and Help
 
