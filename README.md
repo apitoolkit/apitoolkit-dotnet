@@ -7,7 +7,7 @@
 
 [![APItoolkit SDK](https://img.shields.io/badge/APItoolkit-SDK-0068ff?logo=dotnet)](https://github.com/topics/apitoolkit-sdk) [![Join Discord Server](https://img.shields.io/badge/Chat-Discord-7289da)](https://discord.gg/dEB6EjQnKB) [![APItoolkit Docs](https://img.shields.io/badge/Read-Docs-0068ff)](https://apitoolkit.io/docs/sdks/dotnet/dotnetcore?utm_source=github-sdk) [![Build Status](https://github.com/apitoolkit/apitoolkit-dotnet/workflows/.NET/badge.svg)](https://github.com/apitoolkit/apitoolkit-dotnet1/actions?query=workflow%3ACI) [![NuGet](https://img.shields.io/nuget/v/ApiToolkit.Net.svg)](https://nuget.org/packages/ApiToolkit.Net) [![Nuget](https://img.shields.io/nuget/dt/ApiToolkit.Net.svg)](https://nuget.org/packages/ApiToolkit.Net)
 
-APItoolkit is an end-to-end API and web services management toolkit for engineers and customer support teams. To integrate `.Net` web services with APItoolkit, you need to use this SDK to monitor incoming traffic, aggregate the requests, and then deliver them to the APItoolkit's servers.
+APItoolkit is an end-to-end API and web services management toolkit for engineers and customer support teams. To integrate .Net web services with APItoolkit, you need to use this SDK to monitor incoming traffic, aggregate the requests, and then deliver them to the APItoolkit's servers.
 
 </div>
 
@@ -65,7 +65,7 @@ app.Use(async (context, next) =>
 
 > [!IMPORTANT]
 > 
-> To learn more configuration options (redacting fields, error reporting, outgoing requests, etc.) please read our comprehensive [.Net Core SDK](https://apitoolkit.io/docs/sdks/dotnet/dotnetcore?utm_source=github-sdk) documentation.
+> To learn more configuration options (redacting fields, error reporting, outgoing requests, etc.), please read this [SDK documentation](https://apitoolkit.io/docs/sdks/dotnet/dotnetcore?utm_source=github-sdk).
 
 ## Contributing and Help
 
