@@ -32,7 +32,7 @@ dotnet add package ApiToolkit.Net
 
 ## Configuration
 
-Next, initialize APItoolkit in your application's entry point (e.g `Program.cs`) like so:
+Next, initialize APItoolkit in your application's entry point (e.g., `Program.cs`) like so:
 
 ```csharp
 using ApiToolkit.Net;
