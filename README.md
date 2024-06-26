@@ -39,8 +39,10 @@ using ApiToolkit.Net;
 
 var config = new Config
 {
-    Debug = true, # Set debug flags to false in production
-    ApiKey = "{ENTER_YOUR_API_KEY_HERE}"
+    ApiKey = "{ENTER_YOUR_API_KEY_HERE}",
+    Debug = false,
+    Tags = new List<string> { "environment: production", "region: us-east-1" },
+    ServiceVersion: "v2.0",
 };
 var client = await APIToolkit.NewClientAsync(config);
 
