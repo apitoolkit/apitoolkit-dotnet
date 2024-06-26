@@ -37,6 +37,7 @@ Next, initialize APItoolkit in your application's entry point (e.g., `Program.cs
 ```csharp
 using ApiToolkit.Net;
 
+// Initialize the APItoolkit client
 var config = new Config
 {
     ApiKey = "{ENTER_YOUR_API_KEY_HERE}",
@@ -45,6 +46,7 @@ var config = new Config
     ServiceVersion: "v2.0",
 };
 var client = await APIToolkit.NewClientAsync(config);
+// END Initialize the APItoolkit client
 
 # Register the middleware to use the initialized client
 app.Use(async (context, next) =>
