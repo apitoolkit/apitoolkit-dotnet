@@ -42,6 +42,10 @@ namespace ApiToolkit.Net
       {
         await _next(context); // execute the next middleware in the pipeline
       }
+      catch (Exception ex)
+      {
+        Client.ReportError(context, ex);
+      }
       finally
       {
         var requestBody = await new StreamReader(context.Request.Body).ReadToEndAsync();
@@ -178,7 +182,7 @@ namespace ApiToolkit.Net
     }
 
 
-    public void ReportError(HttpContext context, Exception error)
+    public static void ReportError(HttpContext context, Exception error)
     {
       var atError = BuildError(error);
 
@@ -504,7 +508,7 @@ namespace ApiToolkit.Net
         await _publishMessageAsync(payload);
         return response;
       }
-      catch (Exception err)
+      catch (Exception _err)
       {
         return response;
       }
