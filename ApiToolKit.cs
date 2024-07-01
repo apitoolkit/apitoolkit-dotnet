@@ -37,14 +37,18 @@ namespace ApiToolkit.Net
       Guid uuid = Guid.NewGuid();
       var msg_id = uuid.ToString();
       context.Items["APITOOLKIT_MSG_ID"] = msg_id;
+      int statusCode = 0;
 
       try
       {
+
         await _next(context); // execute the next middleware in the pipeline
       }
       catch (Exception ex)
       {
+        statusCode = 500;
         Client.ReportError(context, ex);
+        throw;
       }
       finally
       {
@@ -80,7 +84,11 @@ namespace ApiToolkit.Net
         {
           errors = (List<ATError>)errorListObj;
         }
-        var payload = _client.BuildPayload("DotNet", stopwatch, context.Request, context.Response.StatusCode,
+        if (statusCode == 0)
+        {
+          statusCode = context.Response.StatusCode;
+        }
+        var payload = _client.BuildPayload("DotNet", stopwatch, context.Request, statusCode,
             System.Text.Encoding.UTF8.GetBytes(requestBody), System.Text.Encoding.UTF8.GetBytes(responseBody),
             responseHeaders, pathParams, urlPath, errors, msg_id);
 
