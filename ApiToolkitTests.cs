@@ -10,7 +10,9 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Builder;
-
+using Moq;
+using System.Net.Http;
+using Microsoft.Extensions.DependencyInjection;
 public class RedactTests
 {
     [Test]
@@ -207,4 +209,75 @@ public class RedactTests
         Console.WriteLine($"🔥 parent apitoolkit metadata in test {response}");
     }
 }
+
+
+    public class ApiToolkitClientFactoryTests
+    {
+        private Mock<IHttpClientFactory> _httpClientFactoryMock;
+        private Mock<IServiceProvider> _serviceProviderMock;
+        private Mock<ObservingHandler> _observingHandlerMock;
+        private IApiToolkitClientFactory _apiToolkitClientFactory;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _httpClientFactoryMock = new Mock<IHttpClientFactory>();
+            _serviceProviderMock = new Mock<IServiceProvider>();
+            _observingHandlerMock = new Mock<ObservingHandler>();
+
+            // Set up the service provider to return the observing handler mock
+            _serviceProviderMock
+                .Setup(sp => sp.GetService(typeof(ObservingHandler)))
+                .Returns(_observingHandlerMock.Object);
+
+            // Initialize the ApiToolkitClientFactory with mocks
+            _apiToolkitClientFactory = new ApiToolkitClientFactory(_httpClientFactoryMock.Object, _serviceProviderMock.Object);
+        }
+
+        [Test]
+        public void CreateClient_ShouldReturnHttpClient_WithConfiguredHandler()
+        {
+            // Arrange
+            var options = new ATOptions
+            {
+                PathWildCard = "/posts/{id}",
+                RedactHeaders = new List<string> { "User-Agent" },
+                RedactRequestBody =  new List<string> { "$.user.password" },
+                RedactResponseBody =  new List<string> { "$.user.data.email" }
+            };
+
+            // Act
+            var client = _apiToolkitClientFactory.CreateClient(options);
+
+            // Assert
+            Assert.NotNull(client);
+            _observingHandlerMock.Verify(h => h.SetOptions(options), Times.Once);
+        }
+
+        [Test]
+        public void CreateClient_ShouldUseObservingHandler_FromServiceProvider()
+        {
+            // Act
+            var client = _apiToolkitClientFactory.CreateClient(new ATOptions());
+
+            // Assert
+            _serviceProviderMock.Verify(sp => sp.GetService(typeof(ObservingHandler)), Times.Once);
+        }
+
+        [Test]
+        public void CreateClient_ShouldThrowException_WhenHandlerNotRegistered()
+        {
+            // Arrange
+            var invalidServiceProvider = new Mock<IServiceProvider>();
+            invalidServiceProvider.Setup(sp => sp.GetService(typeof(ObservingHandler)))
+                                  .Returns(null); // Simulate missing handler registration
+
+            var factory = new ApiToolkitClientFactory(_httpClientFactoryMock.Object, invalidServiceProvider.Object);
+
+            // Act & Assert
+            Assert.Throws<NullReferenceException>(() => factory.CreateClient(new ATOptions()));
+        }
+    }
+
+
 
