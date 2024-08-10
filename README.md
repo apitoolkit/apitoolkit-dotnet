@@ -38,6 +38,11 @@ Next, initialize APItoolkit in your application's entry point (e.g., `Program.cs
 using ApiToolkit.Net;
 
 // Initialize the APItoolkit client
+builder.Services.AddTransient<ObservingHandler>();
+
+// Register the custom API Toolkit Client Factory
+builder.Services.AddSingleton<IApiToolkitClientFactory, ApiToolkitClientFactory>();
+
 var config = new Config
 {
     ApiKey = "{ENTER_YOUR_API_KEY_HERE}",
@@ -59,6 +64,66 @@ app.Use(async (context, next) =>
 # other middleware and logic
 # ...
 ```
+
+## Usage
+
+You can now use the IApiToolKitClientFactory Interface to directly make your Http requests
+
+```csharp
+public class MyService
+{
+    private readonly IApiToolkitClientFactory _apiToolkitClientFactory;
+
+    public MyService(IApiToolkitClientFactory apiToolkitClientFactory)
+    {
+        _apiToolkitClientFactory = apiToolkitClientFactory;
+    }
+
+    public async Task<string> GetPostAsync()
+    {
+        var options = new ATOptions
+        {
+            PathWildCard = "/posts/{id}",
+            RedactHeaders = new[] { "User-Agent" },
+            RedactRequestBody = new[] { "$.user.password" },
+            RedactResponseBody = new[] { "$.user.data.email" }
+        };
+
+        var client = _apiToolkitClientFactory.CreateClient(options);
+        var response = await client.GetAsync("https://jsonplaceholder.typicode.com/posts/1");
+        return await response.Content.ReadAsStringAsync();
+    }
+}
+```
+
+Traditional Middleware Setup
+If you prefer to set up the middleware traditionally, here's how you can initialize APItoolkit in your application's entry point (e.g., Program.cs):
+
+```csharp
+using ApiToolkit.Net;
+
+// Initialize the APItoolkit client
+var config = new Config
+{
+    ApiKey = "{ENTER_YOUR_API_KEY_HERE}",
+    Debug = false,
+    Tags = new List<string> { "environment: production", "region: us-east-1" },
+    ServiceVersion: "v2.0",
+};
+var client = await APIToolkit.NewClientAsync(config);
+
+// Register the middleware to use the initialized client
+app.Use(async (context, next) =>
+{
+    var apiToolkit = new APIToolkit(next, client);
+    await apiToolkit.InvokeAsync(context);
+});
+
+// app.UseEndpoint(..)
+// other middleware and logic
+// ...
+```
+
 
 > [!NOTE]
 > 

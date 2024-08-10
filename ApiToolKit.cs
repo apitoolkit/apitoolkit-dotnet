@@ -9,6 +9,7 @@ using NUnit.Framework;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 using System.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
 using static System.Web.HttpUtility;
 
@@ -424,6 +425,31 @@ namespace ApiToolkit.Net
     public string StackTrace { get; set; }
   }
 
+public interface IApiToolkitClientFactory
+{
+    HttpClient CreateClient(ATOptions options);
+}
+
+public class ApiToolkitClientFactory : IApiToolkitClientFactory
+{
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IServiceProvider _serviceProvider;
+
+    public ApiToolkitClientFactory(IHttpClientFactory httpClientFactory, IServiceProvider serviceProvider)
+    {
+        _httpClientFactory = httpClientFactory;
+        _serviceProvider = serviceProvider;
+    }
+
+    public HttpClient CreateClient(ATOptions options)
+    {
+        var client = _httpClientFactory.CreateClient();
+        
+        var handler = _serviceProvider.GetRequiredService<ObservingHandler>();
+        handler.SetOptions(options);
+        return new HttpClient(handler);
+    }
+}
 
   public class ATOptions
   {
@@ -436,9 +462,13 @@ namespace ApiToolkit.Net
   {
     private readonly HttpContext _context;
     private readonly Func<Payload, Task> _publishMessageAsync;
-    private readonly ATOptions _options;
+    private  ATOptions _options;
     private readonly string _project_id;
     private readonly string? _msg_id;
+     public void SetOptions(ATOptions options)
+    {
+        _options = options;
+    }
     public ObservingHandler(Func<Payload, Task> publishMessage, string project_id, HttpContext? httpContext = null, ATOptions? options = null) : base(new HttpClientHandler())
     {
       _context = httpContext ?? throw new ArgumentNullException(nameof(httpContext));
