@@ -234,7 +234,7 @@ namespace ApiToolkit.Net
         ProtoMinor = minorVersion,
         QueryParams = req.Query.ToDictionary(kv => kv.Key, kv => kv.Value.ToString()),
         RawUrl = req.GetEncodedPathAndQuery(),
-        Referer = req.Headers.Referer.ToString(),
+        Referer = req.Headers.ContainsKey("Referer") ? req.Headers["Referer"].ToString() : "",
         RequestBody = RedactJSON(reqBody, Config.RedactRequestBody),
         RequestHeaders = RedactHeaders(reqHeaders, Config.RedactHeaders),
         ResponseBody = RedactJSON(respBody, Config.RedactResponseBody),
