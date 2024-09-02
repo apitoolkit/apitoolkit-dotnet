@@ -38,7 +38,8 @@ namespace ApiToolkit.Net
       var msg_id = uuid.ToString();
       context.Items["APITOOLKIT_MSG_ID"] = msg_id;
       int statusCode = 0;
-
+      var requestBody = await new StreamReader(context.Request.Body).ReadToEndAsync();
+      context.Request.Body.Position = 0; // reset the body stream to the beginning
       try
       {
 
@@ -52,8 +53,6 @@ namespace ApiToolkit.Net
       }
       finally
       {
-        var requestBody = await new StreamReader(context.Request.Body).ReadToEndAsync();
-        context.Request.Body.Position = 0; // reset the body stream to the beginning
 
         responseBodyStream.Seek(0, SeekOrigin.Begin);
         var responseBody = await new StreamReader(responseBodyStream).ReadToEndAsync();
@@ -87,6 +86,16 @@ namespace ApiToolkit.Net
         if (statusCode == 0)
         {
           statusCode = context.Response.StatusCode;
+        }
+        var contentType = context.Request.ContentType;
+        if (contentType != null && contentType.StartsWith("application/x-www-form-urlencoded"))
+        {
+          var parsedData = ParseQueryString(requestBody);
+          var dictionary = parsedData.AllKeys
+                                      .Where(key => key != null)
+                                      .ToDictionary(key => key ?? string.Empty, key => parsedData[key]);
+          requestBody = JsonConvert.SerializeObject(dictionary);
+
         }
         var payload = _client.BuildPayload("DotNet", stopwatch, context.Request, statusCode,
             System.Text.Encoding.UTF8.GetBytes(requestBody), System.Text.Encoding.UTF8.GetBytes(responseBody),
