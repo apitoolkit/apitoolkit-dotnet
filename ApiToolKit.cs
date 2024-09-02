@@ -97,6 +97,18 @@ namespace ApiToolkit.Net
           requestBody = JsonConvert.SerializeObject(dictionary);
 
         }
+        else if (contentType != null && contentType.StartsWith("multipart/form-data"))
+        {
+          try
+          {
+            var form = await context.Request.ReadFormAsync();
+            var formData = form.ToDictionary(x => x.Key, x => x.Value.ToString());
+            requestBody = System.Text.Json.JsonSerializer.Serialize(formData);
+
+          }
+          catch (Exception) { }
+        }
+
         var payload = _client.BuildPayload("DotNet", stopwatch, context.Request, statusCode,
             System.Text.Encoding.UTF8.GetBytes(requestBody), System.Text.Encoding.UTF8.GetBytes(responseBody),
             responseHeaders, pathParams, urlPath, errors, msg_id);
