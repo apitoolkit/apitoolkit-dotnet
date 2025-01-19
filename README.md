@@ -79,10 +79,9 @@ var config = new Config
     Tags = new List<string> { "environment: production", "region: us-east-1" },
     ServiceVersion: "v2.0",
 };
-var client = await APIToolkit.NewClientAsync(config);
+var client = await APIToolkit.NewClient(config);
 // END Initialize the APItoolkit client
-
-# Register the middleware to use the initialized client
+// Register the middleware to use the initialized client
 app.Use(async (context, next) =>
 {
     var apiToolkit = new APIToolkit(next, client);
