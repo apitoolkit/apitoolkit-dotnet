@@ -1,18 +1,10 @@
-﻿using Google.Apis.Auth.OAuth2;
-using Google.Cloud.PubSub.V1;
-using Google.Protobuf.WellKnownTypes;
-using Google.Protobuf;
-using Microsoft.AspNetCore.Http.Extensions;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-using NUnit.Framework;
+﻿using Microsoft.AspNetCore.Http.Extensions;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 using System.Diagnostics;
-using System.Text.Json;
 using static System.Web.HttpUtility;
 
-namespace ApiToolkit.Net
+namespace ApiToolkitss.Net
 {
   public class APIToolkit
   {
@@ -24,11 +16,16 @@ namespace ApiToolkit.Net
       _next = next;
       _client = client;
     }
-
+    private static readonly ActivitySource RegisteredActivity = new ActivitySource("APItoolkit.HTTPInstrumentation");
     public async Task InvokeAsync(HttpContext context)
     {
-      Stopwatch stopwatch = new Stopwatch();
-      stopwatch.Start();
+
+      using var span = RegisteredActivity.StartActivity("apitoolkit-http-span");
+      if (span == null)
+      {
+        await _next(context);
+        return;
+      }
       context.Request.EnableBuffering(); // so we can read the body stream multiple times
 
       var responseBodyStream = new MemoryStream();
@@ -109,50 +106,38 @@ namespace ApiToolkit.Net
           catch (Exception) { }
         }
 
-        var payload = _client.BuildPayload("DotNet", stopwatch, context.Request, statusCode,
-            System.Text.Encoding.UTF8.GetBytes(requestBody), System.Text.Encoding.UTF8.GetBytes(responseBody),
-            responseHeaders, pathParams, urlPath, errors, msg_id);
+        var host = context.Request.Host.Host;
+        var method = context.Request.Method;
+        var majorVersion = context.Request.Protocol.Split('.')[0];
+        var minorVersion = context.Request.Protocol.Split('.')[1];
+        var queryParams = context.Request.Query.ToDictionary(kv => kv.Key, kv => kv.Value.ToString());
+        var reqHeaders = context.Request.Headers.ToDictionary(h => h.Key, h => h.Value.ToList());
+        var rawUrl = context.Request.GetEncodedPathAndQuery();
 
-        await _client.PublishMessageAsync(payload);
+        Client.SetAttributes(
+          span,
+          host,
+          statusCode,
+          queryParams,
+          pathParams,
+          reqHeaders,
+          responseHeaders,
+          method,
+          rawUrl,
+          msg_id,
+          urlPath,
+          requestBody,
+          responseBody,
+          errors,
+          _client.Config,
+          "DotNet");
+
       }
     }
 
-    public static async Task<Client> NewClientAsync(Config cfg)
+    public static Client NewClient(Config cfg)
     {
-      var url = "https://app.apitoolkit.io";
-      if (!string.IsNullOrEmpty(cfg.RootUrl))
-      {
-        url = cfg.RootUrl;
-      }
-
-      using HttpResponseMessage response = await new HttpClient
-      {
-        DefaultRequestHeaders = {
-          {
-        "Authorization", $"Bearer {cfg.ApiKey}"
-          }
-        }
-      }.GetAsync($"{url}/api/client_metadata");
-      if (!response.IsSuccessStatusCode)
-      {
-        throw new Exception($"APIToolkit: Unable to query apitoolkit for client metadata: {response.StatusCode}");
-      }
-
-      var clientMetadata = JsonConvert.DeserializeObject<ClientMetadata>(await response.Content.ReadAsStringAsync());
-      if (clientMetadata is null)
-      {
-        throw new Exception("APIToolkit: Unable to deserialize client metadata response");
-      }
-
-      var credentials = GoogleCredential
-          .FromJson(clientMetadata.PubsubPushServiceAccount.ToString())
-          .CreateScoped(PublisherServiceApiClient.DefaultScopes);
-
-      var publisher = new PublisherClientBuilder();
-      publisher.Credential = credentials;
-      publisher.TopicName = new TopicName(clientMetadata.PubsubProjectId, clientMetadata.TopicId);
-      var pubsubClient = publisher.Build();
-      var client = new Client(pubsubClient, null, cfg, clientMetadata);
+      var client = new Client(cfg);
       if (client.Config.Debug)
       {
         Console.WriteLine("APIToolkit: client initialized successfully");
@@ -162,52 +147,14 @@ namespace ApiToolkit.Net
   }
 
 
-  public class Client
+  public class Client(Config config)
   {
-    public readonly PublisherClient PubSubClient;
-    public readonly TopicName TopicName;
-    public readonly Config Config;
-    public readonly ClientMetadata Metadata;
+    public readonly Config Config = config;
 
-    public Client(PublisherClient pubSubClient, TopicName topicName, Config config, ClientMetadata metadata)
-    {
-      PubSubClient = pubSubClient;
-      TopicName = topicName;
-      Config = config;
-      Metadata = metadata;
-    }
-
-    public async Task PublishMessageAsync(Payload payload)
-    {
-      if (PubSubClient == null)
-      {
-        if (Config.Debug)
-        {
-          Console.WriteLine("APIToolkit: topic is not initialized. Check client initialization. Messages are not being sent to apitoolkit");
-        }
-        return;
-      }
-
-      await PubSubClient.PublishAsync(new PubsubMessage
-      {
-        Data = ByteString.CopyFromUtf8(JsonConvert.SerializeObject(payload)),
-        PublishTime = Timestamp.FromDateTime(DateTime.UtcNow),
-      });
-
-      if (Config.Debug)
-      {
-        Console.WriteLine("APIToolkit: message published to pubsub topic");
-
-        if (Config.VerboseDebug)
-        {
-          Console.WriteLine($"APIToolkit: {JsonConvert.SerializeObject(payload)}");
-        }
-      }
-    }
 
     public ObservingHandler APIToolkitObservingHandler(HttpContext? context = null, ATOptions? options = null)
     {
-      return new ObservingHandler(PublishMessageAsync, Metadata.ProjectId, context, options);
+      return new ObservingHandler(context, options);
     }
 
 
@@ -225,55 +172,73 @@ namespace ApiToolkit.Net
         context.Items["APITOOLKIT_ERRORS"] = errorList;
       }
     }
-
-    public Payload BuildPayload(string SDKType, Stopwatch stopwatch, HttpRequest req, int statusCode, byte[] reqBody, byte[] respBody, Dictionary<string, List<string>> respHeader, Dictionary<string, string> pathParams, string urlPath, List<ATError> errors, string msg_id)
+    public static void SetAttributes(
+    Activity span,
+    string host,
+    int statusCode,
+    Dictionary<string, string> queryParams,
+    Dictionary<string, string?> pathParams,
+    Dictionary<string, List<string?>> reqHeaders,
+    Dictionary<string, List<string?>> respHeaders,
+    string method,
+    string rawUrl,
+    string msgId,
+    string urlPath,
+    string reqBody,
+    string respBody,
+    List<ATError> errors,
+    Config config,
+    string sdkType,
+    string parentId = "")
     {
-      if (req == null || Metadata is null)
+      try
       {
-        // Early return with empty payload to prevent any null reference exceptions
-        if (Config.Debug)
+        string RedactHeader(string header, List<string?> headerVal)
         {
-          Console.WriteLine("APIToolkit: null request or client or url while building payload.");
+          var redactHeaders = config.RedactHeaders != null
+              ? config.RedactHeaders
+              : new List<string>() { "Authorization", "X-Api-Key", "Cookie" };
+
+          return redactHeaders.Contains(header.ToLower())
+              ? "[CLIENT_REDACTED]"
+              : string.Join(",", headerVal);
         }
-        return new Payload();
+
+        span.SetTag("net.host.name", host);
+        span.SetTag("apitoolkit.msg_id", msgId);
+        span.SetTag("http.route", urlPath);
+        span.SetTag("http.target", rawUrl);
+        span.SetTag("http.request.method", method);
+        span.SetTag("http.response.status_code", statusCode);
+        span.SetTag("http.request.query_params", JsonConvert.SerializeObject(queryParams));
+        span.SetTag("http.request.path_params", JsonConvert.SerializeObject(pathParams));
+        span.SetTag("apitoolkit.sdk_type", sdkType);
+        span.SetTag("apitoolkit.parent_id", parentId ?? "");
+        span.SetTag("http.request.body", Convert.ToBase64String(RedactFields(reqBody, config.RedactRequestBody)));
+        span.SetTag("http.response.body", Convert.ToBase64String(RedactFields(respBody, config.RedactResponseBody)));
+        span.SetTag("apitoolkit.errors", JsonConvert.SerializeObject(errors));
+        span.SetTag("apitoolkit.service_version", config.ServiceVersion);
+        span.SetTag("apitoolkit.tags", JsonConvert.SerializeObject(config.Tags ?? new List<string>()));
+
+        foreach (var header in reqHeaders)
+        {
+          span.SetTag($"http.request.header.{header.Key}", RedactHeader(header.Key, header.Value));
+        }
+
+        foreach (var header in respHeaders)
+        {
+          span.SetTag($"http.response.header.{header.Key}", RedactHeader(header.Key, header.Value));
+        }
       }
-      string projectId = Metadata is null ? "" : Metadata.ProjectId;
-
-      var reqHeaders = req.Headers.ToDictionary(h => h.Key, h => h.Value.ToList());
-      int[] versionParts = req.Protocol.Split('/', '.').Skip(1).Select(int.Parse).ToArray();
-      var (majorVersion, minorVersion) = versionParts.Length >= 2 ? (versionParts[0], versionParts[1]) : (1, 1);
-
-      stopwatch.Stop();
-      return new Payload
+      catch (Exception ex)
       {
-        Duration = stopwatch.ElapsedTicks * 100,
-        Host = req.Host.Host,
-        Method = req.Method,
-        PathParams = pathParams,
-        ProjectId = projectId,
-        ProtoMajor = majorVersion,
-        ProtoMinor = minorVersion,
-        QueryParams = req.Query.ToDictionary(kv => kv.Key, kv => kv.Value.ToString()),
-        RawUrl = req.GetEncodedPathAndQuery(),
-        Referer = req.Headers.ContainsKey("Referer") ? req.Headers["Referer"].ToString() : "",
-        RequestBody = RedactJSON(reqBody, Config.RedactRequestBody),
-        RequestHeaders = RedactHeaders(reqHeaders, Config.RedactHeaders),
-        ResponseBody = RedactJSON(respBody, Config.RedactResponseBody),
-        ResponseHeaders = RedactHeaders(respHeader, Config.RedactHeaders),
-        SdkType = SDKType,
-        StatusCode = statusCode,
-        Timestamp = DateTime.UtcNow,
-        UrlPath = urlPath,
-        Errors = errors,
-        ServiceVersion = Config.ServiceVersion,
-        Tags = Config.Tags ?? new List<string> { },
-        MsgId = msg_id
-
-      };
+        if (config.Debug)
+        {
+          Console.WriteLine($"Error setting attributes: {ex.Message}");
+        }
+        span.SetStatus(ActivityStatusCode.Error, ex.Message);
+      }
     }
-
-
-
 
     private static ATError BuildError(Exception error)
     {
@@ -298,8 +263,9 @@ namespace ApiToolkit.Net
 
       return atError;
     }
-    public static byte[] RedactJSON(byte[] data, List<string> jsonPaths)
+    public static byte[] RedactFields(string dataStr, List<string> jsonPaths)
     {
+      var data = System.Text.Encoding.UTF8.GetBytes(dataStr);
       if (jsonPaths is null || jsonPaths.Count == 0 || !data.Any()) return data;
 
       try
@@ -327,105 +293,22 @@ namespace ApiToolkit.Net
   }
 
 
-  public class ClientMetadata
-  {
-    [JsonProperty("project_id")]
-    public string ProjectId { get; set; }
-
-    [JsonProperty("pubsub_project_id")]
-    public string PubsubProjectId { get; set; }
-
-    [JsonProperty("topic_id")]
-    public string TopicId { get; set; }
-
-    [JsonProperty("pubsub_push_service_account")]
-    public JRaw PubsubPushServiceAccount { get; set; }
-  }
 
   public class Config
   {
     public bool Debug { get; set; }
     public bool VerboseDebug { get; set; }
-    public string RootUrl { get; set; }
-    public string ApiKey { get; set; }
     public string ServiceVersion { get; set; }
+    public string ServiceName { get; set; }
+    public bool CaptureRequestBody { get; set; }
+    public bool CaptureResponseBody { get; set; }
     public List<string> Tags { get; set; }
+    public string? PathWildCard { get; set; }
 
     public List<string> RedactHeaders { get; set; }
     public List<string> RedactRequestBody { get; set; }
     public List<string> RedactResponseBody { get; set; }
   }
-
-  public class Payload
-  {
-    [JsonProperty("timestamp")]
-    public DateTime Timestamp { get; set; }
-
-    [JsonProperty("request_headers")]
-    public Dictionary<string, List<string>> RequestHeaders { get; set; }
-
-    [JsonProperty("query_params")]
-    public Dictionary<string, string> QueryParams { get; set; }
-
-    [JsonProperty("path_params")]
-    public Dictionary<string, string> PathParams { get; set; }
-
-    [JsonProperty("response_headers")]
-    public Dictionary<string, List<string>> ResponseHeaders { get; set; }
-
-    [JsonProperty("method")]
-    public string Method { get; set; }
-
-    [JsonProperty("sdk_type")]
-    public string SdkType { get; set; }
-
-    [JsonProperty("host")]
-    public string Host { get; set; }
-
-    [JsonProperty("raw_url")]
-    public string RawUrl { get; set; }
-
-    [JsonProperty("referer")]
-    public string Referer { get; set; }
-
-    [JsonProperty("project_id")]
-    public string ProjectId { get; set; }
-
-    [JsonProperty("url_path")]
-    public string UrlPath { get; set; }
-
-    [JsonProperty("response_body")]
-    public byte[] ResponseBody { get; set; }
-
-    [JsonProperty("request_body")]
-    public byte[] RequestBody { get; set; }
-
-    [JsonProperty("proto_minor")]
-    public int ProtoMinor { get; set; }
-
-    [JsonProperty("status_code")]
-    public int StatusCode { get; set; }
-
-    [JsonProperty("proto_major")]
-    public int ProtoMajor { get; set; }
-
-    //Nanoseconds
-    [JsonProperty("duration")]
-    public long Duration { get; set; }
-    [JsonProperty("errors")]
-    public List<ATError>? Errors { get; set; }
-    [JsonProperty("tags")]
-    public List<string> Tags { get; set; }
-    [JsonProperty("service_version")]
-    public string ServiceVersion { get; set; }
-    [JsonProperty("parent_id")]
-    public string? ParentId { get; set; }
-
-    [JsonProperty("msg_id")]
-    public string? MsgId { get; set; }
-
-  }
-
 
   public class ATError
   {
@@ -456,16 +339,21 @@ namespace ApiToolkit.Net
   public class ObservingHandler : DelegatingHandler
   {
     private readonly HttpContext _context;
-    private readonly Func<Payload, Task> _publishMessageAsync;
-    private readonly ATOptions _options;
-    private readonly string _project_id;
+    private readonly Config _options;
     private readonly string? _msg_id;
-    public ObservingHandler(Func<Payload, Task> publishMessage, string project_id, HttpContext? httpContext = null, ATOptions? options = null) : base(new HttpClientHandler())
+    private static readonly ActivitySource RegisteredActivity = new ActivitySource("APItoolkit.HTTPInstrumentation");
+
+    public ObservingHandler(HttpContext? httpContext = null, ATOptions? options = null) : base(new HttpClientHandler())
     {
       _context = httpContext ?? throw new ArgumentNullException(nameof(httpContext));
-      _publishMessageAsync = publishMessage;
-      _options = options ?? new ATOptions { RedactHeaders = new List<string> { }, RedactRequestBody = new List<string> { }, RedactResponseBody = new List<string> { } };
-      _project_id = project_id;
+      _options = new Config { RedactHeaders = new List<string> { }, RedactRequestBody = new List<string> { }, RedactResponseBody = new List<string> { } };
+      if (options != null)
+      {
+        _options.RedactHeaders = options.RedactHeaders;
+        _options.RedactRequestBody = options.RedactRequestBody;
+        _options.RedactResponseBody = options.RedactResponseBody;
+        _options.PathWildCard = options.PathWildCard;
+      }
       if (httpContext != null)
       {
         if (httpContext.Items.TryGetValue("APITOOLKIT_MSG_ID", out var msg_id) && msg_id != null)
@@ -479,7 +367,7 @@ namespace ApiToolkit.Net
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
 
-      var StartTime = DateTimeOffset.UtcNow;
+      using var span = RegisteredActivity.StartActivity("apitoolkit-http-span");
       var Method = request.Method;
       var RequestUri = request.RequestUri;
       var reqHeaders = request.Headers.ToDictionary(h => h.Key, h => h.Value.ToList());
@@ -489,14 +377,11 @@ namespace ApiToolkit.Net
         reqBody = await request.Content.ReadAsStringAsync(cancellationToken);
       }
 
-      Stopwatch stopwatch = new Stopwatch();
-      stopwatch.Start();
 
       var response = await base.SendAsync(request, cancellationToken);
 
       try
       {
-        var Duration = DateTimeOffset.UtcNow;
         var StatusCode = response.StatusCode;
         var respHeaders = response.Headers.ToDictionary(h => h.Key, h => h.Value.ToList());
         var respBody = await response.Content.ReadAsStringAsync();
@@ -508,44 +393,40 @@ namespace ApiToolkit.Net
           queryDict[key] = queryDictCol[key] ?? "";
         }
 
-        stopwatch.Stop();
+        Guid uuid = Guid.NewGuid();
+        var m_id = uuid.ToString();
 
-        var payload = new Payload
-        {
-          Duration = stopwatch.ElapsedTicks * 100,
-          Host = RequestUri?.Host.ToString() ?? "",
-          Method = Method.ToString(),
-          PathParams = ParsePathPattern(_options.PathWildCard ?? RequestUri?.AbsolutePath ?? "", RequestUri?.AbsolutePath ?? ""),
-          ProjectId = _project_id,
-          ProtoMajor = 1,
-          ProtoMinor = 1,
-          QueryParams = queryDict,
-          RawUrl = RequestUri?.PathAndQuery ?? "",
-          Referer = "",
-          RequestBody = Client.RedactJSON(System.Text.Encoding.UTF8.GetBytes(reqBody), _options.RedactRequestBody ?? new List<string> { }),
-          RequestHeaders = Client.RedactHeaders(reqHeaders, _options.RedactHeaders ?? new List<string> { }),
-          ResponseBody = Client.RedactJSON(System.Text.Encoding.UTF8.GetBytes(respBody), _options.RedactResponseBody ?? new List<string> { }),
-          ResponseHeaders = Client.RedactHeaders(respHeaders, _options.RedactHeaders ?? new List<string> { }),
-          SdkType = "DotNetOutgoing",
-          StatusCode = (int)StatusCode,
-          ParentId = _msg_id,
-          Timestamp = DateTime.UtcNow,
-          UrlPath = _options.PathWildCard ?? RequestUri?.AbsolutePath ?? "",
 
-        };
-
-        await _publishMessageAsync(payload);
+        Client.SetAttributes(
+          span,
+          RequestUri?.Host ?? "",
+          (int)StatusCode,
+          queryDict,
+          ParsePathPattern(_options.PathWildCard ?? RequestUri?.AbsolutePath ?? "", RequestUri?.AbsolutePath ?? ""),
+          reqHeaders,
+          respHeaders,
+          Method.ToString(),
+          RequestUri?.PathAndQuery ?? "",
+          m_id,
+          _options.PathWildCard ?? RequestUri?.AbsolutePath ?? "",
+          reqBody,
+          respBody,
+          [],
+          _options,
+          "DotNetOutgoing",
+           _msg_id ?? ""
+          );
         return response;
       }
-      catch (Exception _err)
+      catch (Exception)
       {
         return response;
       }
 
     }
-    static Dictionary<string, string> ParsePathPattern(string pattern, string url)
+    static Dictionary<string, string?> ParsePathPattern(string pattern, string url)
     {
-      var result = new Dictionary<string, string>();
+      var result = new Dictionary<string, string?>();
 
       var patternParts = pattern.Split('/');
       var urlParts = url.Split('/');
