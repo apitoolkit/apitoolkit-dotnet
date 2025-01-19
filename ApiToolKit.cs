@@ -4,7 +4,7 @@ using Newtonsoft.Json;
 using System.Diagnostics;
 using static System.Web.HttpUtility;
 
-namespace ApiToolkitss.Net
+namespace ApiToolkit.Net
 {
   public class APIToolkit
   {
