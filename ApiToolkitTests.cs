@@ -167,7 +167,6 @@ public class RedactTests
     var config = new Config
     {
       Debug = true,
-      ApiKey = ""
     };
     var client = APIToolkit.NewClient(config);
     var host = await new HostBuilder()
